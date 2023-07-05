@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script src="types.js"></script>
+        <script src="peg.js"></script>
+        <script src="json.js"></script>
+        <script type="module">
+            console.log(XJSON.parse('5123456789012345678901234567890'));
+            console.log(XJSON.parse('{"a": "b", "c": true, "d": false, "e": null, "f": ["g", "h", "i", 123456789012345678901234567890]}'));
+            console.log(XJSON.parse('[1, 2, 3 /* blabla */, 4 /* bla* / */, 5 // foo \n, 6 // foo2 \r, 7, -8, -9e4, 10, -11e3, 12e-2, 14.15, 16.171819e3, 20.21e-2]'));
+        </script>
+    </head>
+    <body>
+    </body>
+</html>
