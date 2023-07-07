@@ -35,6 +35,7 @@ const XJSON = (() => {
             const alternation = productions.alternation;
             const xform = productions.xform;
             const test = productions.test;
+            const memo = productions.memo;
 
             const hex = choice("hex", [
                 xform("0", literal("0"), z =>  0),
@@ -184,8 +185,8 @@ const XJSON = (() => {
             return function parse(txt) {
                 testType(txt, STRING);
                 const s = Source.forString(txt);
-                const pos = s.at(0);
-                const result = root.parse(pos);
+                const ctx = s.start();
+                const result = root.parse(ctx);
                 return result.content;
             };
         }
