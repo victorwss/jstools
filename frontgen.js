@@ -4,7 +4,7 @@ function escapeHTML(txt) {
     return `${txt}`.replaceAll("&", "&amp;").replaceAll(">", "&gt;").replaceAll("<", "&lt;").replaceAll("'", "&apos;").replaceAll('"', "&quot;");
 }
 
-class Acao {
+class Action {
     #img;
     #linkFactory;
 
@@ -30,7 +30,8 @@ class DataTable {
     constructor(descriptor, data, options) {
         testType(descriptor, [STRING]);
         testType(data, [[ANY]]);
-        testType(options, [Acao]);
+        testType(options, [Action]);
+
         for (const line of data) {
             if (line.length !== descriptor.length) throw new ValueError("Inconsistent data size.");
         }
@@ -52,14 +53,16 @@ class DataTable {
         return "<table>" + this.#makeHeader() + this.#data.map(d => this.#makeLine(d)).join("") + "</table>";
     }
 
-    static async fetch(descriptor, url, acao, transform) {
+    static async fetch(descriptor, url, options, transform) {
         testType(descriptor, [STRING]);
         testType(url, STRING);
-        testType(options, [Acao]);
+        testType(options, [Action]);
+
         if (!transform) transform = XJSON.parse;
         testType(transform, FUNCTION);
 
-        const data = await fetch(url);
-        return new DataTable(descriptor, transform(data), options);
+        const data = await (fetch(url).then(r => r.text()));
+        const transformed = transform(data);
+        return new DataTable(descriptor, transformed, options);
     }
 }

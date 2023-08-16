@@ -159,9 +159,9 @@ const XJSON = (() => {
             const obj = new LateBound(), arr = new LateBound();
 
             const possibleValue = choice("value", [str, fullNumber, pTrue, pFalse, pNull, obj, arr]);
-            const value = xform("value"    , sequence("value with ws"    , [ws , possibleValue, ws  ]), z => z[1]        );
-            const key   = xform("key"      , sequence("key with ws"      , [ws , str         , ws   ]), z => z[1]        );
-            const kv    = xform("key-value", sequence("key-value with ws", [key, literal(":"), value]), z => [z[0], z[2]]);
+            const value = xform("value"    , sequence("value with ws"    , [ws , possibleValue, ws   ]), z => z[1]        );
+            const key   = xform("key"      , sequence("key with ws"      , [ws , str          , ws   ]), z => z[1]        );
+            const kv    = xform("key-value", sequence("key-value with ws", [key, literal(":") , value]), z => [z[0], z[2]]);
 
             const comma = sequence("comma", [ws, literal(","), ws]);
 
