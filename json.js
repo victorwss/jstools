@@ -1,24 +1,90 @@
 "use strict";
 
 const XJSON = (() => {
+    class ParseFlags {
+        #allowComments;
+        #allowSingleQuotedStrings;
+        #allowUnquotedKeys;
+
+        constructor(allowComments, allowSingleQuotedStrings, allowUnquotedKeys) {
+            testType(allowComments, BOOLEAN);
+            testType(allowSingleQuotedStrings, BOOLEAN);
+            testType(allowUnquotedKeys, BOOLEAN);
+            this.#allowComments = allowComments;
+            this.#allowSingleQuotedStrings = allowSingleQuotedStrings;
+            this.#allowUnquotedKeys = allowUnquotedKeys;
+        }
+
+        get allowComments() {
+            return this.#allowComments;
+        }
+
+        get allowSingleQuotedStrings() {
+            return this.#allowSingleQuotedStrings;
+        }
+
+        get allowUnquotedKeys() {
+            return this.#allowUnquotedKeys;
+        }
+
+        get isStandart() {
+            return !this.allowComments && !this.allowSingleQuotedStrings && !this.allowUnquotedKeys;
+        }
+
+        get withComments() {
+            return new ParseFlags(true, this.allowSingleQuotedStrings, this.allowUnquotedKeys);
+        }
+
+        get withNoComments() {
+            return new ParseFlags(false, this.allowSingleQuotedStrings, this.allowUnquotedKeys);
+        }
+
+        get withSingleQuotedStrings() {
+            return new ParseFlags(this.allowComments, true, this.allowUnquotedKeys);
+        }
+
+        get withNoSingleQuotedStrings() {
+            return new ParseFlags(this.allowComments, false, this.allowUnquotedKeys);
+        }
+
+        get withUnquotedKeys() {
+            return new ParseFlags(this.allowComments, this.allowSingleQuotedStrings, true);
+        }
+
+        get withUnquotedKeys() {
+            return new ParseFlags(this.allowComments, this.allowSingleQuotedStrings, false);
+        }
+    }
+
+    const standardFlags = new ParseFlags(false, false, false);
+
     class XJSON {
 
-        static #instance = XJSON.#create();
+        static #standard = XJSON.#create(standardFlags);
 
-        static get instance() {
-            return XJSON.#instance;
+        static get standard() {
+            return XJSON.#standard;
+        }
+
+        static get flags() {
+            return standardFlags;
         }
 
         constructor() {
             throw new TypeError();
         }
 
-        static parse(s) {
-            testType(s, STRING);
-            return XJSON.#instance(s);
+        static parser(flags) {
+            testType(flags, ParseFlags);
+            const x = (flags.isStandard ? XJSON.#standard : XJSON.#create(flags));
+            return function(s) {
+                testType(s, STRING);
+                return x(s);
+            }
         }
 
-        static #create() {
+        static #create(flags) {
+            testType(flags, ParseFlags);
 
             const anyChar = productions.anyChar;
             const literal = productions.literal;
@@ -97,7 +163,7 @@ const XJSON = (() => {
                 z => String.fromCodePoint(z[1] * 16 ** 3 + z[2] * 16 ** 2 + z[3] * 16 + z[4])
             );
 
-            const escapeCodes = choice("Escape code", [
+            const escapeCodeChoices = [
                 literal('"'),
                 literal("\\"),
                 literal("/"),
@@ -107,16 +173,33 @@ const XJSON = (() => {
                 xform("carriage return", literal("r"), z => "\r"),
                 xform("tab"            , literal("t"), z => "\t"),
                 uescape
-            ]);
+            ];
+            if (flags.allowSingleQuotedStrings) {
+                escapeCodeChoices.push(literal("'"));
+            }
+            const escapeCodes = choice("Escape code", escapeCodeChoices);
 
             const escape = xform("Escaped char", sequence("Escape sequence", [literal("\\"), escapeCodes]), z => z[1]);
 
             const valid = test("Plain string char", anyChar, z => z !== '"' && z !== "\\" && z.codePointAt(0) >= 32);
 
+            const alpha = test("Plain alphabetic char", anyChar, z => z.codePointAt(0) >= "a".codePon);
+
             const strChar = choice("Any string char", [valid, escape]);
 
             const strContent = xform("String content", star(strChar), z => z.join(""));
-            const strQuoted = sequence("Quoted string", [literal('"'), strContent, literal('"')]);
+            const strQuoted2 = sequence("Double quoted string", [literal('"'), strContent, literal('"')]);
+            const strQuotedChoices = [strQuoted2];
+            if (flags.allowSingleQuotedStrings) {
+                const strQuoted1 = sequence("Single quoted string", [literal("'"), strContent, literal("'")]);
+                strCodeChoices.push(strQuoted1);
+            }
+            if (flags.allowUnquotedKeys) {
+                const strUnquoted = sequence("Unquoted string", [literal("'"), strContent, literal("'")]);
+                //strCodeChoices.push(strUnquoted);
+            }
+            const strQuoted = choice("Quoted string", strQuotedChoices);
+
             const str = xform("String", strQuoted, z => z[1]);
 
             function fold(z) {
@@ -149,14 +232,15 @@ const XJSON = (() => {
             const comment2 = sequence("// comment"   , [literal("//"), star(notLineBreak), lineBreak    ]);
 
             const wsx = choice("whitespace", [literal(" "), literal("\n"), literal("\r"), literal("\t")]);
-            const ignored = choice("ignored", [comment1, comment2, wsx]);
+            const ignored = flags.allowComments ? choice("ignored", [comment1, comment2, wsx]) : wsx;
             const ws = star(ignored);
 
             const pTrue  = xform("true" , literal("true" ), z => true );
             const pFalse = xform("false", literal("false"), z => false);
             const pNull  = xform("null" , literal("null" ), z => null );
 
-            const obj = new LateBound(), arr = new LateBound();
+            const obj = new LateBound();
+            const arr = new LateBound();
 
             const possibleValue = choice("value", [str, fullNumber, pTrue, pFalse, pNull, obj, arr]);
             const value = xform("value"    , sequence("value with ws"    , [ws , possibleValue, ws   ]), z => z[1]        );
