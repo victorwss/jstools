@@ -751,8 +751,9 @@ const productions = {
 
         testType(p, Production);
         testType(q, Production);
-        const continuation = productions.sequence(q + p, [q, p]);
-        return productions.xform(`alternating<${p}, ${q}>`, productions.sequence(`unprocessed alternating<${p}, ${q}>`, [p, productions.star(continuation)]), rearrage);
+        const continuation = productions.sequence(q + " - " + p, [q, p]);
+        const unp = productions.sequence(`unprocessed alternating<${p}, ${q}>`, [p, productions.star(continuation)]);
+        return productions.xform(`alternating<${p}, ${q}>`, unp, rearrage);
     }
 };
 

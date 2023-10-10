@@ -7,11 +7,20 @@
         <script src="json.js"></script>
         <script src="frontgen.js"></script>
         <script>
+            let i = 1;
+
+            function idFactory(no, linha) {
+                const id = "x" + (++i);
+                const ac = `alert('${id} ::: ${linha.join(" --- ")}')`;
+                console.log(ac);
+                return new ActionLinks(id, ac);
+            }
+
             async function executar() {
-                console.log(XJSON.parse('5123456789012345678901234567890'));
-                console.log(XJSON.parse('{"a": "b", "c": true, "d": false, "e": null, "f": ["g", "h", "i", 123456789012345678901234567890]}'));
-                console.log(XJSON.parse('[1, 2, 3 /* blabla */, 4 /* bla* / */, 5 // foo \n, 6 // foo2 \r, 7, -8, -9e4, 10, -11e3, 12e-2, 14.15, 16.171819e3, 20.21e-2]'));
-                const d1 = new DataTable(["a", "b"], [["1", 2], ["3", 4]], []).makeTable();
+                console.log(XJSON.parser(false)('5123456789012345678901234567890'));
+                console.log(XJSON.parser(false)(('{"a": "b", "c": true, "d": false, "e": null, "f": ["g", "h", "i", 123456789012345678901234567890]}'));
+                console.log(XJSON.parser(false)(('[1, 2, 3 /* blabla */, 4 /* bla* / */, 5 // foo \n, 6 // foo2 \r, 7, -8, -9e4, 10, -11e3, 12e-2, 14.15, 16.171819e3, 20.21e-2]'));
+                const d1 = new DataTable("t1", ["a", "b"], [["1", 2], ["3", 4]], []).makeTable();
                 console.log(d1);
                 document.getElementById("tabela1").innerHTML = d1;
                 const dados = '['
@@ -21,9 +30,9 @@
                     + '{"id": 4, "nome": "Teste 000", "descricao": "Blabla 4"}'
                     + ']';
                 const mapper = d => XJSON.parse(d).map(linha => [linha.id, linha.nome, linha.descricao]);
-                const d2 = new DataTable(["id", "nome", "descricao"], mapper(dados), []);
+                const d2 = new DataTable("t2", ["id", "nome", "descricao"], mapper(dados), [new Action("x", idFactory)]);
                 document.getElementById("tabela2").innerHTML = d2.makeTable();
-                const d3 = await DataTable.fetch(["id", "nome", "descricao"], "http://127.0.0.1:8888/json-test", [], mapper);
+                const d3 = await DataTable.fetch("t3", ["id", "nome", "descricao"], "http://127.0.0.1:8888/json-test", [], mapper);
                 document.getElementById("tabela3").innerHTML = d3.makeTable();
             }
         </script>
