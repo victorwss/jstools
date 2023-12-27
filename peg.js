@@ -1,5 +1,8 @@
 "use strict";
 
+// Check if those were correctly imported.
+INT; FLOAT; BOOLEAN; FUNCTION; BIGINT; UNDEFINED; NULL; NAN; STRING; INFINITY; ANY; typeName; getType; orType; testType; [].checkFinal; [].checkAbstract;
+
 const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Production, Literal, AnyChar, Bof, Eof, Empty, Sequence, Star, Choice, Has, HasNot, Xform, Test, LateBound, Memoized] = (() => {
     class Source {
 
@@ -53,6 +56,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return new Source(raw, (b, c) => raw.slice(b, c), raw.length);
         }
     }
+    Object.freeze(Source.prototype);
 
     class ParsePosition {
         #src;
@@ -105,6 +109,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return this.parsedTo(what, this.move(size));
         }
     }
+    Object.freeze(ParsePosition.prototype);
 
     class Parsed {
         #src;
@@ -154,6 +159,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return this.src.slice(this.#from, this.#to);
         }
     }
+    Object.freeze(Parsed.prototype);
 
     class ParseError extends Error {
         #pos;
@@ -177,9 +183,11 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return this.#pos.src;
         }
     }
+    Object.freeze(ParseError.prototype);
 
     class NotFoundError extends Error {
     }
+    Object.freeze(NotFoundError.prototype);
 
     class Memory {
         #src;
@@ -228,6 +236,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return e;
         }
     }
+    Object.freeze(Memory.prototype);
 
     class ParseContext {
         #src;
@@ -290,6 +299,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return new ParseContext(this.src, this.memo, otherPos);
         }
     }
+    Object.freeze(ParseContext.prototype);
 
     class Production {
         #uuid;
@@ -317,6 +327,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return this.#uuid;
         }
     }
+    Object.freeze(Production.prototype);
 
     class Literal extends Production {
         #value;
@@ -341,6 +352,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return `"LITERAL ${this.#value}"`;
         }
     }
+    Object.freeze(Literal.prototype);
 
     class AnyChar extends Production {
 
@@ -357,6 +369,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return ctx.parsed(s, 1);
         }
     }
+    Object.freeze(AnyChar.prototype);
 
     class Bof extends Production {
 
@@ -372,6 +385,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return ctx.parsed(this, 0);
         }
     }
+    Object.freeze(Bof.prototype);
 
     class Eof extends Production {
 
@@ -387,6 +401,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return ctx.parsed(this, 0);
         }
     }
+    Object.freeze(Eof.prototype);
 
     class Empty extends Production {
 
@@ -401,6 +416,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return ctx.parsed(this, 0);
         }
     }
+    Object.freeze(Empty.prototype);
 
     class Sequence extends Production {
         #name;
@@ -432,6 +448,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return this.#name;
         }
     }
+    Object.freeze(Sequence.prototype);
 
     class Star extends Production {
         #p;
@@ -464,6 +481,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return this.#p + "*";
         }
     }
+    Object.freeze(Star.prototype);
 
     class Choice extends Production {
         #name;
@@ -495,6 +513,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return this.#name;
         }
     }
+    Object.freeze(Choice.prototype);
 
     class Has extends Production {
         #p;
@@ -518,6 +537,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return "&" + this.#p;
         }
     }
+    Object.freeze(Has.prototype);
 
     class HasNot extends Production {
         #p;
@@ -545,6 +565,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return "!" + this.#p;
         }
     }
+    Object.freeze(HasNot.prototype);
 
     class Xform extends Production {
         #name;
@@ -573,6 +594,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return this.#name;
         }
     }
+    Object.freeze(Xform.prototype);
 
     class Test extends Production {
         #name;
@@ -602,6 +624,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return this.#name;
         }
     }
+    Object.freeze(Test.prototype);
 
     class LateBound extends Production {
         #p;
@@ -627,6 +650,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return (this.#p || "<unbounded>") + "";
         }
     }
+    Object.freeze(LateBound.prototype);
 
     class Memoized extends Production {
         #p;
@@ -661,6 +685,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return `[memoized ${this.#p}]`;
         }
     }
+    Object.freeze(Memoized.prototype);
 
     return [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Production, Literal, AnyChar, Bof, Eof, Empty, Sequence, Star, Choice, Has, HasNot, Xform, Test, LateBound, Memoized];
 })();
@@ -676,12 +701,6 @@ const productions = {
         return new Literal(value);
     },
 
-    /*notChars: function(name, values) {
-        testType(name, STRING);
-        testType(values, [STRING]);
-        return test(name, productions.anyChar, z => !values.includes(z));
-    },*/
-
     sequence: function sequence(name, ps) {
         testType(name, STRING);
         testType(ps, [Production]);
@@ -694,6 +713,7 @@ const productions = {
     },
 
     plus: function plus(p) {
+        testType(p, Production);
         return productions.test(p + "+", productions.star(p), z => z.length > 0);
     },
 
@@ -739,7 +759,10 @@ const productions = {
     },
 
     alternation: function alternation(p, q) {
-        function rearrage(x) {
+        testType(p, Production);
+        testType(q, Production);
+
+        function rearrange(x) {
             const a = [x[0]];
             const b = [];
             for (const c of x[1]) {
@@ -749,11 +772,30 @@ const productions = {
             return [a, b];
         }
 
-        testType(p, Production);
-        testType(q, Production);
         const continuation = productions.sequence(q + " - " + p, [q, p]);
         const unp = productions.sequence(`unprocessed alternating<${p}, ${q}>`, [p, productions.star(continuation)]);
-        return productions.xform(`alternating<${p}, ${q}>`, unp, rearrage);
+        return productions.xform(`alternating<${p}, ${q}>`, unp, rearrange);
+    },
+
+    regroup: function regroup(name, ps) {
+        testType(name, STRING);
+        testType(ps, [Production]);
+
+        function rearrange(x) {
+            const out = [];
+            for (const g in ps) {
+                out.push([]);
+            }
+            for (const p of x) {
+                for (let i = 0; i < ps.length; i++) {
+                    out[i].push(p[i]);
+                }
+            }
+            return out;
+        }
+
+        const part = productions.star(productions.sequence(`unprocessed ${name}`, ps));
+        return productions.xform(name, part, rearrange);
     }
 };
 

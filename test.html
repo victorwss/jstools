@@ -4,22 +4,29 @@
         <title>Teste</title>
         <script src="types.js"></script>
         <script src="peg.js"></script>
+        <script src="identifier.js"></script>
         <script src="json.js"></script>
         <script src="frontgen.js"></script>
         <script>
             let i = 1;
 
-            function idFactory(no, linha) {
+            function idFactory(no, line) {
                 const id = "x" + (++i);
-                const ac = `alert('${id} ::: ${linha.join(" --- ")}')`;
+                const ac = `alert('${id} ::: ${line.join(" --- ")}')`;
                 console.log(ac);
                 return new ActionLinks(id, ac);
             }
 
-            async function executar() {
+            async function testJson() {
                 console.log(XJSON.standard('5123456789012345678901234567890'));
                 console.log(XJSON.standard('{"a": "b", "c": true, "d": false, "e": null, "f": ["g", "h", "i", 123456789012345678901234567890]}'));
-                console.log(XJSON.parser(XJSON.flags.withComments)('[1, 2, 3 /* blabla */, 4 /* bla* / */, 5 // foo \n, 6 // foo2 \r, 7, -8, -9e4, 10, -11e3, 12e-2, 14.15, 16.171819e3, 20.21e-2]'));
+                console.log(XJSON.parser(XJSON.standardFlags.withComments)('[1, 2, 3 /* blabla */, 4 /* bla* / */, 5 // foo \n, 6 // foo2 \r, 7, -8, -9e4, 10, -11e3, 12e-2, 14.15, 16.171819e3, 20.21e-2]'));
+                console.log(XJSON.json5('{"a": "b", "c": true, "d": false, "e": null, "f": ["g", "h", "i", 123456789012345678901234567890]}'));
+                console.log(XJSON.json5('{a: "b", \'c\': true, "d": false, eˁ: null, f: ["g", "h", \'i\', /*bla*/ 123456789012345678901234567890] //\n }'));
+                console.log(XJSON.json5('{a: "b", \'c\': true, "d": false, e: ["g", "h", \'i\', 123456789012345678901234567890], \\u{02AE}: "\\u{02AE}" }'));
+            }
+
+            async function testDataTables() {
                 const d1 = new DataTable("t1", ["a", "b"], [["1", 2], ["3", 4]], []).makeTable();
                 console.log(d1);
                 document.getElementById("tabela1").innerHTML = d1;
@@ -37,7 +44,7 @@
             }
         </script>
     </head>
-    <body onload="executar()">
+    <body onload="testJson()">
         <div id="tabela1"></div>
         <div id="tabela2"></div>
         <div id="tabela3"></div>
