@@ -12,9 +12,13 @@ const [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFI
     }
 
     const defaultTypes = {};
+    const defaultTypesList = [];
 
     function makeType(t) {
-        if (!(t in defaultTypes)) defaultTypes[t] = {name: t};
+        if (!(t in defaultTypes)) {
+            defaultTypes[t] = {name: t};
+            defaultTypesList.push(defaultTypes[t]);
+        }
         return defaultTypes[t];
     }
 
@@ -55,6 +59,10 @@ const [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFI
 
         if (whatShouldBe === ANY || whatIs === whatShouldBe) {
             return;
+        }
+
+        if (defaultTypesList.includes(whatShouldBe)) {
+            throw new TypeError(`Is ${whatIs.name} but should be ${whatShouldBe.name}.`);
         }
 
         if (whatShouldBe.constructor === OrType) {

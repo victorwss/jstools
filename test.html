@@ -20,8 +20,16 @@
             async function testJson() {
                 console.log(XJSON.standard('5123456789012345678901234567890'));
                 console.log(XJSON.standard('{"a": "b", "c": true, "d": false, "e": null, "f": ["g", "h", "i", 123456789012345678901234567890]}'));
-                console.log(XJSON.parser(XJSON.standardFlags.withComments)('[1, 2, 3 /* blabla */, 4 /* bla* / */, 5 // foo \n, 6 // foo2 \r, 7, -8, -9e4, 10, -11e3, 12e-2, 14.15, 16.171819e3, 20.21e-2]'));
+                console.log(XJSON.parser(XJSON.standardFlags.withAllowComments)('[1, 2, 3 /* blabla */, 4 /* bla* / */, 5 // foo \n, 6 // foo2 \r, 7, -8, -9e4, 10, -11e3, 12e-2, 14.15, 16.171819e3, 20.21e-2]'));
+                console.log(XJSON.json5('[1]'));
                 console.log(XJSON.json5('{"a": "b", "c": true, "d": false, "e": null, "f": ["g", "h", "i", 123456789012345678901234567890]}'));
+                console.log(XJSON.json5('{"a": "b", \'c\': true, "d": false, "eˁ": null, "f": ["g", "h", \'i\', /*bla*/ 123456789012345678901234567890] //\n }'));
+                console.log(XJSON.json5('{a: "b"}'));
+                console.log(XJSON.json5('[1, ]'));
+                console.log(XJSON.json5('{"a": "b", }'));
+                console.log(XJSON.json5('"\\u{02AE}"'));
+                console.log(XJSON.json5('{s\\u{02AE}: 2}'));
+                console.log(XJSON.json5('{"a": "b", \'c\': true, "d": false, "eˁ": null, "f": ["g", "h", \'i\', /*bla*/ 123456789012345678901234567890, ], //\n }'));
                 console.log(XJSON.json5('{a: "b", \'c\': true, "d": false, eˁ: null, f: ["g", "h", \'i\', /*bla*/ 123456789012345678901234567890] //\n }'));
                 console.log(XJSON.json5('{a: "b", \'c\': true, "d": false, e: ["g", "h", \'i\', 123456789012345678901234567890], \\u{02AE}: "\\u{02AE}" }'));
             }
