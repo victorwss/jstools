@@ -1,7 +1,7 @@
 "use strict";
 
 // Check if those were correctly imported.
-INT; FLOAT; BOOLEAN; FUNCTION; BIGINT; UNDEFINED; NULL; NAN; STRING; INFINITY; ANY; typeName; getType; orType; testType; [].checkFinal; [].checkAbstract;
+INT; FLOAT; BOOLEAN; FUNCTION; BIGINT; UNDEFINED; NULL; NAN; STRING; INFINITY; ANY; typeName; getType; orType; funcType; testType; [].checkFinal; [].checkAbstract;
 
 const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Production, LateBound, Trace, ProductionFactory] = (() => {
 
@@ -16,7 +16,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         #uuid;
 
         constructor(raw, slicer, length) {
-            testType(slicer, FUNCTION);
+            testType(slicer, funcType(2));
             testType(length, INT);
             this.checkFinal(Source);
             this.#slicer = slicer;
@@ -415,9 +415,9 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         #innerParse;
 
         constructor(namer, memoized, innerParse) {
-            testType(namer, FUNCTION);
+            testType(namer, funcType(0));
             testType(memoized, BOOLEAN);
-            testType(innerParse, FUNCTION);
+            testType(innerParse, funcType(2));
             this.checkFinal(Production);
             this.#uuid = newUuid();
             this.#namer = namer;
@@ -484,15 +484,15 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
     }
     Object.freeze(Production.prototype);
 
-    function literal(value) {
+    function literal(value, output = value) {
         testType(value, STRING);
 
         const action = (ctx, makeError) => {
             testType(ctx, ParseContext);
-            testType(makeError, FUNCTION);
+            testType(makeError, funcType(0));
             const len = value.length;
             const s = ctx.slice(len);
-            if (s === value) return ctx.parsed(s, len);
+            if (s === value) return ctx.parsed(output, len);
             makeError();
         };
 
@@ -502,7 +502,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
     function anyChar() {
         const action = (ctx, makeError) => {
             testType(ctx, ParseContext);
-            testType(makeError, FUNCTION);
+            testType(makeError, funcType(0));
             const s = ctx.slice(1);
             if (s === "") makeError();
             return ctx.parsed(s, 1);
@@ -514,7 +514,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         let prod;
         const action = (ctx, makeError) => {
             testType(ctx, ParseContext);
-            testType(makeError, FUNCTION);
+            testType(makeError, funcType(0));
             if (!ctx.begin) makeError();
             return ctx.parsed(prod, 0);
         };
@@ -526,7 +526,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         let prod;
         const action = (ctx, makeError) => {
             testType(ctx, ParseContext);
-            testType(makeError, FUNCTION);
+            testType(makeError, funcType(0));
             if (!ctx.end) makeError();
             return ctx.parsed(prod, 0);
         };
@@ -538,20 +538,30 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         let prod;
         const action = (ctx, makeError) => {
             testType(ctx, ParseContext);
-            testType(makeError, FUNCTION);
+            testType(makeError, funcType(0));
             return ctx.parsed(prod, 0);
         };
         prod = new Production(() => "Empty", false, action);
         return prod;
     }
 
-    function sequence(name, ps) {
+    function rejects() {
+        const action = (ctx, makeError) => {
+            testType(ctx, ParseContext);
+            testType(makeError, funcType(0));
+            makeError();
+        };
+        return new Production(() => "Rejects", false, action);
+    }
+
+    function sequence(name, ps, f = x => x) {
         testType(name, STRING);
         testType(ps, [Production]);
+        testType(f, funcType(1));
 
         const action = (ctx, makeError) => {
             testType(ctx, ParseContext);
-            testType(makeError, FUNCTION);
+            testType(makeError, funcType(0));
             const a = ctx;
             const r = [];
             for (const p of ps) {
@@ -559,18 +569,20 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
                 r.push(k.content);
                 ctx = ctx.on(k.to);
             }
-            return a.parsedTo(r, ctx.pos);
+            const fkt = f(r);
+            return a.parsedTo(fkt, ctx.pos);
         };
 
-        return new Production(() => `${name} (SEQUENCE OF [${ps.map(p => "" + p).join(", ")}])`, true, action);
+        return new Production(() => name, true, action);
     }
 
-    function star(p) {
+    function star(p, f = x => x) {
         testType(p, Production);
+        testType(f, funcType(1));
 
         const action = (ctx, makeError) => {
             testType(ctx, ParseContext);
-            testType(makeError, FUNCTION);
+            testType(makeError, funcType(0));
             const a = ctx;
             const r = [];
             while (true) {
@@ -580,7 +592,8 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
                     ctx = ctx.on(k.to);
                 } catch (e) {
                     if (!(e instanceof ParseError)) throw e;
-                    return a.parsedTo(r, ctx.pos);
+                    const fkt = f(r);
+                    return a.parsedTo(fkt, ctx.pos);
                 }
             }
         };
@@ -588,16 +601,43 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         return new Production(() => p + "*", true, action);
     }
 
-    function choice(name, ps) {
-        testType(name, STRING);
-        testType(ps, [Production]);
+    function plus(p, f = x => x) {
+        testType(p, Production);
+        testType(f, funcType(1));
 
         const action = (ctx, makeError) => {
             testType(ctx, ParseContext);
-            testType(makeError, FUNCTION);
+            testType(makeError, funcType(0));
+            const a = ctx;
+            const r = [];
+            while (true) {
+                try {
+                    const k = p.parse(ctx);
+                    r.push(k.content);
+                    ctx = ctx.on(k.to);
+                } catch (e) {
+                    if (!(e instanceof ParseError)) throw e;
+                    if (r.length === 0) makeError();
+                    const fkt = f(r);
+                    return a.parsedTo(fkt, ctx.pos);
+                }
+            }
+        };
+
+        return new Production(() => p + "+", true, action);
+    }
+
+    function choice(name, ps, f = x => x) {
+        testType(name, STRING);
+        testType(ps, [Production]);
+        testType(f, funcType(1));
+
+        const action = (ctx, makeError) => {
+            testType(ctx, ParseContext);
+            testType(makeError, funcType(0));
             for (const p of ps) {
                 try {
-                    return p.parse(ctx);
+                    return f(p.parse(ctx));
                 } catch (e) {
                     if (!(e instanceof ParseError)) throw e;
                 }
@@ -605,7 +645,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             makeError();
         };
 
-        return new Production(() => `${name} (CHOICE OF [${ps.map(p => "" + p).join(", ")}])`, true, action);
+        return new Production(() => name, true, action);
     }
 
     function has(p) {
@@ -613,7 +653,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
 
         const action = (ctx, makeError) => {
             testType(ctx, ParseContext);
-            testType(makeError, FUNCTION);
+            testType(makeError, funcType(0));
             const a = pos;
             const k = p.parse(ctx);
             return a.parsed(k, 0);
@@ -628,7 +668,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         let prod;
         const action = (ctx, makeError) => {
             testType(ctx, ParseContext);
-            testType(makeError, FUNCTION);
+            testType(makeError, funcType(0));
             try {
                 p.parse(ctx);
             } catch (e) {
@@ -645,20 +685,14 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
     function xform(name, memoized, p, f) {
         testType(name, STRING);
         testType(p, Production);
-        testType(f, FUNCTION);
+        testType(f, funcType(1));
 
         const action = (ctx, makeError) => {
             testType(ctx, ParseContext);
-            testType(makeError, FUNCTION);
+            testType(makeError, funcType(0));
             const k = p.parse(ctx);
-            let kt, fkt;
-            try {
-                kt = k.content;
-                fkt = f(kt);
-            } catch (xxx) {
-                console.log(k, kt, f, fkt, xxx + "", name);
-                throw xxx;
-            }
+            const kt = k.content;
+            const fkt = f(kt);
             return k.withContent(fkt);
         };
 
@@ -668,11 +702,11 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
     function test(name, memoized, p, f) {
         testType(name, STRING);
         testType(p, Production);
-        testType(f, FUNCTION);
+        testType(f, funcType(1));
 
         const action = (ctx, makeError) => {
             testType(ctx, ParseContext);
-            testType(makeError, FUNCTION);
+            testType(makeError, funcType(0));
             const k = p.parse(ctx);
             if (f(k.content)) return k;
             makeError(ctx);
@@ -685,13 +719,12 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         #outer;
         #inner;
 
-        constructor(wrapper) {
-            if (!wrapper) wrapper = x => x;
-            testType(wrapper, FUNCTION);
+        constructor(wrapper = x => x) {
+            testType(wrapper, funcType(1));
 
             const action = (ctx, makeError) => {
                 testType(ctx, ParseContext);
-                testType(makeError, FUNCTION);
+                testType(makeError, funcType(0));
                 if (!this.#inner) throw new Error("Not set yet.");
                 return this.#inner.parse(ctx);
             };
@@ -720,6 +753,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         #bof;
         #eof;
         #empty;
+        #rejects;
         #literal;
         #sequence;
         #star;
@@ -734,9 +768,8 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         #alternation;
         #regroup;
 
-        constructor(wrapper) {
-            if (!wrapper) wrapper = x => x;
-            testType(wrapper, FUNCTION);
+        constructor(wrapper = x => x) {
+            testType(wrapper, funcType(1));
             this.checkFinal(ProductionFactory);
             this.#wrapper = wrapper;
 
@@ -744,45 +777,48 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             const cBof = wrapper(bof());
             const cEof = wrapper(eof());
             const cEmpty = wrapper(empty());
+            const cRejects = wrapper(rejects());
 
             this.#anyChar = () => cAnyChar;
             this.#bof = () => cBof;
             this.#eof = () => cEof;
             this.#empty = () => cEmpty;
+            this.#rejects = () => cRejects;
 
-            this.#literal = (value) => {
+            this.#literal = (value, output = value) => {
                 testType(value, STRING);
-                return this.#wrapper(literal(value));
+                return this.#wrapper(literal(value, output));
             };
 
-            this.#sequence = (name, ps) => {
+            this.#sequence = (name, ps, f = x => x) => {
                 testType(name, STRING);
                 testType(ps, [Production]);
-                return this.#wrapper(sequence(name, ps));
+                testType(f, funcType(1));
+                return this.#wrapper(sequence(name, ps, f));
             };
 
-            this.#star = (p) => {
+            this.#star = (p, f = x => x) => {
                 testType(p, Production);
-                return this.#wrapper(star(p));
+                testType(f, funcType(1));
+                return this.#wrapper(star(p, f));
             };
 
-            this.#plus = (p) => {
+            this.#plus = (p, f = x => x) => {
                 testType(p, Production);
-                return this.test(p + "+", false, this.star(p), z => {
-                    testType(z, Array);
-                    return z.length > 0;
-                });
+                testType(f, funcType(1));
+                return this.#wrapper(plus(p, f));
             };
 
-            this.#choice = (name, ps) => {
+            this.#choice = (name, ps, f = x => x) => {
                 testType(name, STRING);
                 testType(ps, [Production]);
-                return this.#wrapper(choice(name, ps));
+                testType(f, funcType(1));
+                return this.#wrapper(choice(name, ps, f));
             };
 
-            this.#opt = (p) => {
+            this.#opt = (p, defaultValue = cEmpty) => {
                 testType(p, Production);
-                return this.choice(p + "?", [p, this.empty()]);
+                return this.choice(p + "?", [p, xform("" + cEmpty, false, cEmpty, x => defaultValue)]);
             };
 
             this.#has = (p) => {
@@ -799,7 +835,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
                 testType(name, STRING);
                 testType(memoized, BOOLEAN);
                 testType(p, Production);
-                testType(f, FUNCTION);
+                testType(f, funcType(1));
                 return this.#wrapper(xform(name, memoized, p, f));
             };
 
@@ -807,7 +843,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
                 testType(name, STRING);
                 testType(memoized, BOOLEAN);
                 testType(p, Production);
-                testType(f, FUNCTION);
+                testType(f, funcType(1));
                 return this.#wrapper(test(name, memoized, p, f));
             };
 
@@ -815,9 +851,10 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
                 return new LateBound(this.#wrapper);
             };
 
-            this.#alternation = (p, q) => {
+            this.#alternation = (p, q, f = x => x) => {
                 testType(p, Production);
                 testType(q, Production);
+                testType(f, funcType(1));
 
                 function rearrange(x) {
                     const a = [x[0]];
@@ -826,7 +863,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
                         b.push(c[0]);
                         a.push(c[1]);
                     }
-                    return [a, b];
+                    return f([a, b]);
                 }
 
                 const continuation = this.sequence(q + " - " + p, [q, p]);
@@ -834,9 +871,10 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
                 return this.xform(`alternating<${p}, ${q}>`, true, unp, rearrange);
             };
 
-            this.#regroup = (name, ps) => {
+            this.#regroup = (name, ps, f = x => x) => {
                 testType(name, STRING);
                 testType(ps, [Production]);
+                testType(f, funcType(1));
 
                 function rearrange(x) {
                     const out = [];
@@ -848,7 +886,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
                             out[i].push(p[i]);
                         }
                     }
-                    return out;
+                    return f(out);
                 }
 
                 const part = this.star(this.sequence(`unprocessed ${name}`, ps));
@@ -862,6 +900,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         get bof        () { return this.#bof        ; }
         get eof        () { return this.#eof        ; }
         get empty      () { return this.#empty      ; }
+        get rejects    () { return this.#rejects    ; }
         get literal    () { return this.#literal    ; }
         get sequence   () { return this.#sequence   ; }
         get star       () { return this.#star       ; }

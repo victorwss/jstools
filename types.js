@@ -1,6 +1,6 @@
 "use strict";
 
-const [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFINITY, ANY, typeName, getType, orType, testType] = (() => {
+const [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFINITY, ANY, typeName, getType, orType, funcType, testType] = (() => {
     function typeName(s) {
         if (typeof s === "number") {
             if (s !== s) return "NaN";
@@ -37,7 +37,9 @@ const [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFI
     class OrType {
         #subtypes;
 
-        constructor(subtypes) {
+        constructor(...subtypes) {
+            testType(subtypes, Array);
+            if (subtypes.length < 2) throw new TypeError("Too few types to OR-out.");
             this.#subtypes = subtypes;
         }
 
@@ -50,8 +52,55 @@ const [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFI
         }
     }
 
-    function orType(types) {
-        return new OrType(types);
+    class FuncType {
+        #min;
+        #max
+
+        constructor(...specs) {
+            if (specs.length === 0) {
+                this.#min = 0;
+                this.#max = Infinity;
+            } else if (specs.length === 1) {
+                testType(specs[0], INT);
+                this.#min = specs[0];
+                this.#max = specs[0];
+            } else if (specs.length === 2) {
+                testType(specs[0], INT, x => x >= 0);
+                testType(specs[1], orType(INT, Infinity));
+                if (specs[1] < specs[0]) throw new TypeError("The maximum number of parameters can't be smaller than the minimum.");
+                this.#min = specs[0];
+                this.#max = specs[1];
+            } else {
+                throw new TypeError("Too many parameters.");
+            }
+        }
+
+        get min() {
+            return this.#min;
+        }
+
+        get max() {
+            return this.#min;
+        }
+
+        get count() {
+            return this.#min === this.#max                   ? "" + this.#min
+                :  this.#max === Infinity && this.#min === 0 ? "..."
+                :  this.#max === Infinity                    ? this.#min + "..."
+                :  this.#min + "-" + this.#max;
+        }
+
+        get name() {
+            return `Function(${this.count})`;
+        }
+    }
+
+    function orType(...types) {
+        return new OrType(...types);
+    }
+
+    function funcType(...specs) {
+        return new FuncType(...specs);
     }
 
     function testType(whatGot, whatShouldBe) {
@@ -66,17 +115,25 @@ const [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFI
         }
 
         if (whatShouldBe.constructor === OrType) {
-            const errors = [];
             for (const t of whatShouldBe.subtypes) {
                 try {
                     testType(whatGot, t);
                     return;
                 } catch (e) {
                     if (!(e instanceof TypeError)) throw e;
-                    errors.push(e);
                 }
             }
             throw new TypeError(`Is ${whatIs.name} but should be ${whatShouldBe.name}.`);
+        }
+
+        if (whatShouldBe.constructor === FuncType) {
+            if (whatIs !== FUNCTION) throw new TypeError(`Is ${whatIs.name} but should be ${whatShouldBe.name}.`);
+            const d = whatShouldBe.min === whatShouldBe.max;
+            const m1 = d ? "at least " : "";
+            const m2 = d ? "at most "  : "";
+            if (whatGot.length < whatShouldBe.min) throw new TypeError(`Function should have ${m1}${whatShouldBe.min} parameters, but have ${whatGot.length}.`);
+            if (whatGot.length > whatShouldBe.max) throw new TypeError(`Function should have ${m2}${whatShouldBe.max} parameters, but have ${whatGot.length}.`);
+            return;
         }
 
         if (whatShouldBe.constructor === Array) {
@@ -91,6 +148,7 @@ const [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFI
 
         if (whatShouldBe.constructor === Object) {
             if (whatIs !== Object) throw new TypeError(`Is ${whatIs.name} but should be plain object.`);
+            const properties = whatShouldBe.keys();
             for (const p in properties) {
                 if (!(p in whatGot)) throw new TypeError(`Missing property ${p}.`);
             }
@@ -116,5 +174,5 @@ const [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFI
         if (this.constructor === myClass) throw new TypeError(`The class ${myClass.name} is abstract.`);
     };
 
-    return [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFINITY, ANY, typeName, getType, orType, testType];
+    return [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFINITY, ANY, typeName, getType, orType, funcType, testType];
 })();
