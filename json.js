@@ -3,7 +3,7 @@
 // Check if those were correctly imported.
 INT; FLOAT; BOOLEAN; FUNCTION; BIGINT; UNDEFINED; NULL; NAN; STRING; INFINITY; ANY; typeName; getType; orType; testType; [].checkFinal; [].checkAbstract;
 UnicodeTable;
-Source; ParsePosition; Parsed; ParseError; ParseContext; Memory; Production; LateBound; Trace; ProductionFactory;
+Source; ParsePosition; Parsed; ParseError; ParseContext; Memory; Production; Grammar; LateBound; Trace; ProductionFactory;
 
 const [ParseFlags, XJSON] = (() => {
     class ParseFlags {
@@ -167,7 +167,7 @@ const [ParseFlags, XJSON] = (() => {
     class XJSON {
 
         static #standard = XJSON.#create(ParseFlags.standardFlags);
-        static #json5 = XJSON.#create(ParseFlags.json5Flags);
+        static #json5    = XJSON.#create(ParseFlags.json5Flags   );
 
         static get standard() {
             return XJSON.#standard;
@@ -235,41 +235,49 @@ const [ParseFlags, XJSON] = (() => {
             // Sometimes, non-characters, private-use, surrogates and control aren't acceptable and that can be configured in the flags.
             const validChar = flags.allowAllCharacters ? anyChar : test("Valid char", false, anyChar, isAcceptableSymbol);
 
+            const tab            = literal("\t");
+            const lineFeed       = literal("\n");
+            const carriageReturn = literal("\r");
+            const openBracket    = literal("[" );
+            const closeBracket   = literal("]" );
+            const openCurly      = literal("{" );
+            const closeCurly     = literal("}" );
+
             // json.org lists only four whitespaces other than the empty string: standard space, new line, carriage return and tab.
-            const wsa = choice("Standard whitespace", [literal(" "), literal("\n"), literal("\r"), literal("\t")]);
+            const wsa = choice("Standard whitespace", [literal(" "), lineFeed, carriageReturn, tab]);
 
             // json5.org tells that any unicode whitespace is to be considered valid whitespace.
             const wsu = test("Unicode whitespace", false, validChar, UnicodeTable.isWhitespaceSymbol);
 
             // Defined in json5.org. Useful in comments and for multi-line strings. Not used in standard JSON.
             // Important: \r\n must come before \r in the choice.
-            const lineTerminator = choice("Line terminator", [literal("\r\n"), literal("\r"), literal("\n"), literal("\u2028"), literal("\u2029")]);
+            const lineTerminator = choice("Line terminator", [literal("\r\n"), carriageReturn, lineFeed, literal("\u2028"), literal("\u2029")]);
             const notLineTerminator = sequence("Not a line break", [hasNot(lineTerminator), validChar]);
 
             // Part 2: Defining character classes for digits.
 
-            const d0 = literal("0",  0n);
-            const d1 = literal("1",  1n);
-            const d2 = literal("2",  2n);
-            const d3 = literal("3",  3n);
-            const d4 = literal("4",  4n);
-            const d5 = literal("5",  5n);
-            const d6 = literal("6",  6n);
-            const d7 = literal("7",  7n);
-            const d8 = literal("8",  8n);
-            const d9 = literal("9",  9n);
-            const da = literal("a", 10n);
-            const dA = literal("A", 10n);
-            const db = literal("b", 11n);
-            const dB = literal("B", 11n);
-            const dc = literal("c", 12n);
-            const dC = literal("C", 12n);
-            const dd = literal("d", 13n);
-            const dD = literal("D", 13n);
-            const de = literal("e", 14n);
-            const dE = literal("E", 14n);
-            const df = literal("f", 15n);
-            const dF = literal("F", 15n);
+            const d0 = literal("0",  0n, "0 value");
+            const d1 = literal("1",  1n, "1 value");
+            const d2 = literal("2",  2n, "2 value");
+            const d3 = literal("3",  3n, "3 value");
+            const d4 = literal("4",  4n, "4 value");
+            const d5 = literal("5",  5n, "5 value");
+            const d6 = literal("6",  6n, "6 value");
+            const d7 = literal("7",  7n, "7 value");
+            const d8 = literal("8",  8n, "8 value");
+            const d9 = literal("9",  9n, "9 value");
+            const da = literal("a", 10n, "a value");
+            const dA = literal("A", 10n, "A value");
+            const db = literal("b", 11n, "b value");
+            const dB = literal("B", 11n, "B value");
+            const dc = literal("c", 12n, "c value");
+            const dC = literal("C", 12n, "C value");
+            const dd = literal("d", 13n, "d value");
+            const dD = literal("D", 13n, "D value");
+            const de = literal("e", 14n, "e value");
+            const dE = literal("E", 14n, "E value");
+            const df = literal("f", 15n, "f value");
+            const dF = literal("F", 15n, "F value");
 
             const d19 = [d1, d2, d3, d4, d5, d6, d7, d8, d9];
             const d09 = [d0, ...d19];
@@ -285,7 +293,8 @@ const [ParseFlags, XJSON] = (() => {
             const digit0F = choice("hex"    , dhx);
 
             // Defined in json5.org with the intent of ignoring the preceding reverse solidus if that is not followed by a digit.
-            const notDigit = sequence("Not digit", [hasNot(digit09), validChar], z => z[1]);
+            const hasNotDigit09 = hasNot(digit09);
+            const notDigit = sequence("Not digit", [hasNotDigit09, validChar], z => z[1]);
 
             // Part 3: Building integer number from digit sequences.
 
@@ -313,85 +322,84 @@ const [ParseFlags, XJSON] = (() => {
             // Part 4: Whitespaces and comments.
 
             // Comments.
-            const notStarSlash = sequence("Not */", [hasNot(literal("*/")), validChar]);
-            const comment1 = sequence("/* comment */", [literal("/*"), star(notStarSlash     ), literal("*/") ]);
+            const starSlash = literal("*/");
+            const notStarSlash = sequence("Not */", [hasNot(starSlash), validChar]);
+            const comment1 = sequence("/* comment */", [literal("/*"), star(notStarSlash     ), starSlash     ]);
             const comment2 = sequence("// comment"   , [literal("//"), star(notLineTerminator), lineTerminator]);
 
             // Decides what should be considered as whitespaces accordingly to the flags.
-            const ignoreList = [];
-            if (flags.allowComments) {
-                ignoreList.push(comment1, comment2);
-            }
-            if (flags.allowUnicodeWhitespace) {
-                ignoreList.push(wsu);
-            } else if (flags.allowAnsiWhitespace) {
-                ignoreList.push(wsa);
-            }
-            const ignored = choice("ignored", ignoreList);
+            const addComments = flags.allowComments ? [comment1, comment2] : [];
+            const addWs       = flags.allowUnicodeWhitespace ? [wsu] : flags.allowAnsiWhitespace ? [wsa] : [];
+            const ignoreList  = [...addComments, ...addWs];
 
             // This is what should be considered as whitespace.
-            const ws = ignoreList.length === 0 ? empty : star(ignored);
+            const ws = ignoreList.length === 0 ? empty
+                    :  ignoreList.length === 1 ? star(ignoreList[0])
+                    :  star(choice("ignored", ignoreList));
 
             // Part 5: Escape sequences.
 
             // The standard JSON \u____ sequence and the JSON5 \u{...} and \x__ sequences.
             const makeChar = n => String.fromCodePoint(Number(n));
-            const escapedCharBmp    = sequence("Escape sequence \\u____" , [literal("u" ), hex4              ], z => makeChar(z[1]));
-            const escapedCharX      = sequence("Escape sequence \\x__"   , [literal("x" ), hex2              ], z => makeChar(z[1]));
-            const escapedCharEs2015 = sequence("Escape sequence \\u{...}", [literal("u{"), hexn, literal("}")], z => makeChar(z[1]));
+            const escapedCharBmp    = sequence("Escape sequence \\u____" , [literal("u" ), hex4            ], z => makeChar(z[1]));
+            const escapedCharX      = sequence("Escape sequence \\x__"   , [literal("x" ), hex2            ], z => makeChar(z[1]));
+            const escapedCharEs2015 = sequence("Escape sequence \\u{...}", [literal("u{"), hexn, closeCurly], z => makeChar(z[1]));
 
             // For building the simple sequences while avoiding repetitive code.
             const makeEscape = (name, symbol, value) => literal(symbol, value);
 
             // Simple escapes listed in the order that they're defined in json.org.
-            const escapeDoubleQuote    = literal('"' );
-            const escapeReverseSolidus = literal("\\");
-            const escapeSolidus        = literal("/" );
-            const escapeBackspace      = literal("b" , "\b");
-            const escapeFormFeed       = literal("f" , "\f");
-            const escapeNewLine        = literal("n" , "\n");
-            const escapeCarriageReturn = literal("r" , "\r");
-            const escapeTab            = literal("t" , "\t");
+            const doubleQuote          = literal('"' );
+            const reverseSolidus       = literal("\\");
+            const solidus              = literal("/" );
+            const escapeBackspace      = literal("b" , "\b", "Backspace escape"      );
+            const escapeFormFeed       = literal("f" , "\f", "Form feed escape"      );
+            const escapeNewLine        = literal("n" , "\n", "New line escape"       );
+            const escapeCarriageReturn = literal("r" , "\r", "Carriage return escape");
+            const escapeTab            = literal("t" , "\t", "Tab escape"            );
 
             // Simple escapes defined in json5.org.
-            const escapeSingleQuote    = literal("'" );
-            const escapeVerticalTab    = literal("v" , "\v");
-            const escapeNullCharacter  = literal("0" , "\0");
+            const singleQuote          = literal("'" );
+            const escapeVerticalTab    = literal("v" , "\v", "Vertical tab escape"   );
+            const escapeNullCharacter  = literal("0" , "\0", "Null character escape" );
 
             // json5.org forbids digits following \0. So we need to check those.
-            const escapeNullCharacterOk = sequence("Valid null character", [escapeNullCharacter, hasNot(digit09)], z => z[0]);
+            const escapeNullCharacterOk = sequence("Valid null character", [escapeNullCharacter, hasNotDigit09], z => z[0]);
 
             // For multi-line strings.
             const escapeLineTerminator = xform("Line terminator escape", false, lineTerminator, z => "");
 
             // Use the flags to decide which escape sequences are desired.
+            const addSingleQuote = flags.allowSingleQuoteEscapes ? [singleQuote] : [];
+            const addES2015      = flags.allowES2015Escapes      ? [escapedCharX, escapedCharEs2015, escapeVerticalTab, escapeNullCharacterOk, escapeLineTerminator] : [];
+            const addPointless   = flags.allowAllEscapes         ? [notDigit] : [];
             const escapeCodeList = [
-                escapeDoubleQuote, escapeReverseSolidus, escapeSolidus, escapeBackspace, escapeFormFeed, escapeNewLine, escapeCarriageReturn, escapeTab, escapedCharBmp
+                doubleQuote, reverseSolidus, solidus, escapeBackspace, escapeFormFeed, escapeNewLine, escapeCarriageReturn, escapeTab,
+                escapedCharBmp,
+                ...addSingleQuote, ...addES2015, ...addPointless
             ];
-            if (flags.allowSingleQuoteEscapes) escapeCodeList.push(escapeSingleQuote);
-            if (flags.allowES2015Escapes     ) escapeCodeList.push(escapedCharX, escapedCharEs2015, escapeVerticalTab, escapeNullCharacterOk, escapeLineTerminator);
-            if (flags.allowAllEscapes        ) escapeCodeList.push(notDigit);
 
             // Create the escape code (still without the preceding reverse solidus, as shown in the json.org grammar).
             const escape = choice("Escape", escapeCodeList);
 
             // Second choice of the character production in json.org (possibly modified by the flags tricks to conform to json5.org).
             // This is actually all the escape sequences including the preceding reverse solidus.
-            const escapedChar = sequence("Escape code", [literal("\\"), escape], z => z[1]);
+            const escapedChar = sequence("Escape code", [reverseSolidus, escape], z => z[1]);
 
             // Part 6: Strings.
 
             // Character production in json.org. The validChar already filtered out control chars (or any other undesired chars) that needed to be filtered out.
             // So we just need to filter out \ and ".
-            const validChar1 = sequence("Char1", [hasNot(literal("\\")), hasNot(literal("'")), validChar], z => z[2]);
-            const validChar2 = sequence("Char2", [hasNot(literal("\\")), hasNot(literal('"')), validChar], z => z[2]);
+            const hasNotReverseSolidus = hasNot(reverseSolidus);
+            const validChar1 = sequence("Char1", [hasNotReverseSolidus, hasNot(singleQuote), validChar], z => z[2]);
+            const validChar2 = sequence("Char2", [hasNotReverseSolidus, hasNot(doubleQuote), validChar], z => z[2]);
 
             const strChar0 = choice("Identifier character"          , [escapedChar, validChar ]);
             const strChar1 = choice("Sinqle-quoted string character", [escapedChar, validChar1]);
             const strChar2 = choice("Double-quoted string character", [escapedChar, validChar2]);
 
-            const str1 = sequence("Single-quoted string", [literal("'"), star(strChar1), literal("'")], z => z[1].join(""));
-            const str2 = sequence("Double-quoted string", [literal('"'), star(strChar2), literal('"')], z => z[1].join(""));
+            const str1 = sequence("Single-quoted string", [singleQuote, star(strChar1), singleQuote], z => z[1].join(""));
+            const str2 = sequence("Double-quoted string", [doubleQuote, star(strChar2), doubleQuote], z => z[1].join(""));
 
             const str = flags.allowSingleQuotedStrings ? choice("String", [str1, str2]) : str2;
 
@@ -416,23 +424,29 @@ const [ParseFlags, XJSON] = (() => {
             };
 
             // Optional signal. Standard JSON doesn't allow a following +, so we have signalm for that.
-            const signalpm = choice("+/-/_", [literal("+", 1n), literal("-", -1n), literal("", 1n)]);
-            const signalm  = choice("-/_"  , [                  literal("-", -1n), literal("", 1n)]);
+            const plusSign  = literal("+",  1n);
+            const minusSign = literal("-", -1n);
+            const noSign    = xform("No signal", false, empty, z => 1n);
+            const signalpm  = choice("+/-/_", [plusSign, minusSign, noSign]);
+            const signalm   = choice("-/_"  , [          minusSign, noSign]);
 
             // Hex integers (without signal yet).
             const zeroX = choice("0x", [literal("0x"), literal("0X")]);
             const hexLiteral = sequence("Hex literal", [zeroX, hexn], z => z[1]);
 
             // Exponent for floating-point numbers.
-            const e = choice("E", [literal("e"), literal("E")]);
+            const e = choice("E sign", [literal("e"), literal("E")]);
             const exponent = sequence("Exponent", [e, signalpm, digits] , z => z[1] * fold10(z[2]));
+            const optExponent = opt(exponent, 0n);
+
+            const dot = literal(".");
 
             // The first three of those are the forms of DecimalLiteral as defined in JSON5. Standard JSON is the 1st and 4th.
             // The 4th form is a subset of the 3rd, so it is uneeded/redundant to JSON5. But the 3rd form is non-compliant in standard JSON, so we still need the 4th.
-            const simpleNumber    = sequence("Simple number"    , [decimalIntegerLiteral,                                  opt(exponent, 0n)], z => makeNumber(z[0], [0n], z[1]));
-            const dotNumber       = sequence("Dot number"       , [                       literal("."),     digits       , opt(exponent, 0n)], z => makeNumber(  0n, z[1], z[2]));
-            const fullNumberLoose = sequence("Full number loose", [decimalIntegerLiteral, literal("."), opt(digits, [0n]), opt(exponent, 0n)], z => makeNumber(z[0], z[2], z[3]));
-            const fullNumberRigid = sequence("Full number rigid", [decimalIntegerLiteral, literal("."),     digits       , opt(exponent, 0n)], z => makeNumber(z[0], z[2], z[3]));
+            const simpleNumber    = sequence("Simple number"    , [decimalIntegerLiteral,                         optExponent], z => makeNumber(z[0], [0n], z[1]));
+            const dotNumber       = sequence("Dot number"       , [                       dot,     digits       , optExponent], z => makeNumber(  0n, z[1], z[2]));
+            const fullNumberLoose = sequence("Full number loose", [decimalIntegerLiteral, dot, opt(digits, [0n]), optExponent], z => makeNumber(z[0], z[2], z[3]));
+            const fullNumberRigid = sequence("Full number rigid", [decimalIntegerLiteral, dot,     digits       , optExponent], z => makeNumber(z[0], z[2], z[3]));
 
             // Numeric literals for JSON5.
             const literalInfinity = literal("Infinity", Infinity);
@@ -465,10 +479,11 @@ const [ParseFlags, XJSON] = (() => {
             const kv    = sequence("Key-value", [key, literal(":") , value], z => [z[0], z[2]]);
 
             const comma = sequence("Comma", [ws, literal(","), ws]);
+            const optComma = opt(comma);
 
             const commas = (n, x) => {
                 const alt = alternation(x, comma, z => z[0]);
-                const seq = sequence(n + " possibly with extra comma", [alt, opt(comma)], z => z[0]);
+                const seq = sequence(n + " possibly with extra comma", [alt, optComma], z => z[0]);
                 return flags.allowTrailingCommas ? seq : alt;
             };
 
@@ -482,24 +497,14 @@ const [ParseFlags, XJSON] = (() => {
                 return x;
             };
 
-            obj.inner = sequence("Object", [literal("{"), commas("Object properties", kv   ), literal("}")], z => makeObj(z[1]));
-            arr.inner = sequence("List"  , [literal("["), commas("List items"       , value), literal("]")], z => z[1]         );
+            obj.inner = sequence("Object", [openCurly  , commas("Object properties", kv   ), closeCurly  ], z => makeObj(z[1]));
+            arr.inner = sequence("List"  , [openBracket, commas("List items"       , value), closeBracket], z => z[1]         );
 
             // Part 10: The gran-finale.
 
             const root = sequence("JSON document", [bof, value, eof], z => z[1]);
-
-            return function parse(txt) {
-                testType(txt, STRING);
-                const s = Source.forString(txt);
-                const ctx = s.start();
-                try {
-                    const result = root.parse(ctx);
-                    return result.content;
-                } finally {
-                    console.log(ctx.memo.deadStacks);
-                }
-            };
+            const g = new Grammar(root);
+            return g.parse;
         }
     }
 

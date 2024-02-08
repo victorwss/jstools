@@ -3,7 +3,7 @@
 // Check if those were correctly imported.
 INT; FLOAT; BOOLEAN; FUNCTION; BIGINT; UNDEFINED; NULL; NAN; STRING; INFINITY; ANY; typeName; getType; orType; funcType; testType; [].checkFinal; [].checkAbstract;
 
-const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Production, LateBound, Trace, ProductionFactory] = (() => {
+const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Production, Grammar, LateBound, Trace, ProductionFactory] = (() => {
 
     function newUuid() {
         return URL.createObjectURL(new Blob([])).slice(-36);
@@ -16,6 +16,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         #uuid;
 
         constructor(raw, slicer, length) {
+            testType(raw, orType(STRING, Array));
             testType(slicer, funcType(2));
             testType(length, INT);
             this.checkFinal(Source);
@@ -52,14 +53,10 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return new ParseContext(this, new Memory(this), this.at(0));
         }
 
-        static forString(raw) {
-            testType(raw, STRING);
-            return new Source(raw, (b, c) => raw.substring(b, c), raw.length);
-        }
-
-        static forArray(raw) {
-            testType(raw, Array);
-            return new Source(raw, (b, c) => raw.slice(b, c), raw.length);
+        static create(raw) {
+            testType(raw, orType(STRING, Array));
+            const slicer = raw instanceof Array ? (b, c) => raw.slice(b, c) : (b, c) => raw.substring(b, c);
+            return new Source(raw, slicer, raw.length);
         }
 
         toString() {
@@ -212,7 +209,6 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
     class Memory {
         #src;
         #memo;
-        #uuid;
         #tracingCalls;
         #deadStacks;
 
@@ -221,7 +217,6 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             this.checkFinal(Memory);
             this.#src = src;
             this.#memo = {};
-            this.#uuid = newUuid();
             this.#tracingCalls = [];
             this.#deadStacks = [];
             Object.seal(this);
@@ -233,9 +228,9 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
 
         #forProduction(p) {
             testType(p, Production);
-            let sub = this.#memo[p.uuid];
+            let sub = this.#memo[p.name];
             if (!sub) {
-                sub = this.#memo[p.uuid] = new Array(this.#src.length);
+                sub = this.#memo[p.name] = new Array(this.#src.length);
             }
             return sub;
         }
@@ -265,7 +260,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         }
 
         toString() {
-            return `{uuid: ${this.#uuid}, src: ${this.src}}`;
+            return `{src: ${this.src}}`;
         }
 
         pushTracingCall(call) {
@@ -409,21 +404,34 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
 
     class Production {
         #name;
-        #uuid;
         #namer;
         #memoized;
+        #innerProductions;
         #innerParse;
 
-        constructor(namer, memoized, innerParse) {
-            testType(namer, funcType(0));
+        constructor(namer, memoized, innerProductions, innerParse) {
+            testType(namer, orType(STRING, funcType(0)));
             testType(memoized, BOOLEAN);
+            testType(innerProductions, orType([Production], Production, funcType(0)));
             testType(innerParse, funcType(2));
             this.checkFinal(Production);
-            this.#uuid = newUuid();
+            if (getType(namer) === STRING) {
+                const n = namer;
+                namer = () => n;
+            }
             this.#namer = namer;
             this.#name = namer();
             this.#memoized = memoized;
+            if (innerProductions instanceof Production) {
+                innerProductions = [innerProductions];
+            }
+            if (innerProductions instanceof Array) {
+                const arr = [...innerProductions];
+                innerProductions = () => [...arr];
+            }
+            this.#innerProductions = innerProductions;
             this.#innerParse = innerParse;
+            //console.log(`Production ${this.#name} ${this.#uuid}`);
             Object.freeze(this);
         }
 
@@ -474,18 +482,65 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return this.#name;
         }
 
-        get uuid() {
-            return this.#uuid;
+        get name() {
+            return this.toString();
         }
 
         get memoized() {
             return this.#memoized;
         }
+
+        get innerProductions() {
+            return this.#innerProductions();
+        }
     }
     Object.freeze(Production.prototype);
 
-    function literal(value, output = value) {
+    class Grammar {
+        #root;
+        #productions;
+
+        constructor(root) {
+            testType(root, Production);
+
+            const pending = [root];
+            const prods = {};
+
+            while (pending.length >= 1) {
+                const current = pending.pop();
+                const alreadyHave = prods[current.name];
+                if (alreadyHave === current) continue;
+                if (alreadyHave) throw new Error(`Two or more productions can't have the same name in the same grammar: ${current.name}.`);
+                prods[current.name] = current;
+                pending.push(...current.innerProductions);
+            }
+
+            this.#root = root;
+            this.#productions = prods;
+        }
+
+        get parse() {
+            const root = this.#root;
+
+            return function parse(txt) {
+                testType(txt, orType(STRING, Array));
+                const s = Source.create(txt);
+                const ctx = s.start();
+                try {
+                    const result = root.parse(ctx);
+                    return result.content;
+                } finally {
+                    console.log(ctx.memo.deadStacks);
+                }
+            };
+        };
+    }
+    Object.freeze(Grammar.prototype);
+
+    function literal(value, output = value, name = `Literal ${value}`) {
         testType(value, STRING);
+        testType(name, STRING);
+        if (value.length === 0) throw new Error("The value is empty. Consider using the empty production instead.");
 
         const action = (ctx, makeError) => {
             testType(ctx, ParseContext);
@@ -496,7 +551,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             makeError();
         };
 
-        return new Production(() => `Literal ${value}`, false, action);
+        return new Production(name, false, [], action);
     }
 
     function anyChar() {
@@ -507,7 +562,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             if (s === "") makeError();
             return ctx.parsed(s, 1);
         };
-        return new Production(() => "AnyChar", false, action);
+        return new Production("Any character", false, [], action);
     }
 
     function bof() {
@@ -518,7 +573,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             if (!ctx.begin) makeError();
             return ctx.parsed(prod, 0);
         };
-        prod = new Production(() => "Bof", false, action);
+        prod = new Production("BOF", false, [], action);
         return prod;
     }
 
@@ -530,7 +585,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             if (!ctx.end) makeError();
             return ctx.parsed(prod, 0);
         };
-        prod = new Production(() => "Eof", false, action);
+        prod = new Production("EOF", false, [], action);
         return prod;
     }
 
@@ -541,7 +596,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             testType(makeError, funcType(0));
             return ctx.parsed(prod, 0);
         };
-        prod = new Production(() => "Empty", false, action);
+        prod = new Production("Empty", false, [], action);
         return prod;
     }
 
@@ -551,13 +606,14 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             testType(makeError, funcType(0));
             makeError();
         };
-        return new Production(() => "Rejects", false, action);
+        return new Production("Rejects", false, [], action);
     }
 
     function sequence(name, ps, f = x => x) {
         testType(name, STRING);
         testType(ps, [Production]);
         testType(f, funcType(1));
+        if (ps.length < 2) throw new Error("This sequence is too short to make sense.");
 
         const action = (ctx, makeError) => {
             testType(ctx, ParseContext);
@@ -573,7 +629,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return a.parsedTo(fkt, ctx.pos);
         };
 
-        return new Production(() => name, true, action);
+        return new Production(name, true, ps, action);
     }
 
     function star(p, f = x => x) {
@@ -598,7 +654,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             }
         };
 
-        return new Production(() => p + "*", true, action);
+        return new Production(() => p + "*", true, p, action);
     }
 
     function plus(p, f = x => x) {
@@ -624,13 +680,14 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             }
         };
 
-        return new Production(() => p + "+", true, action);
+        return new Production(() => p + "+", true, p, action);
     }
 
     function choice(name, ps, f = x => x) {
         testType(name, STRING);
         testType(ps, [Production]);
         testType(f, funcType(1));
+        if (ps.length < 2) throw new Error("This choice has too few options to make sense.");
 
         const action = (ctx, makeError) => {
             testType(ctx, ParseContext);
@@ -645,7 +702,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             makeError();
         };
 
-        return new Production(() => name, true, action);
+        return new Production(name, true, ps, action);
     }
 
     function has(p) {
@@ -659,7 +716,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return a.parsed(k, 0);
         };
 
-        return new Production(() => "&" + p, true, action);
+        return new Production(() => "&" + p, true, p, action);
     }
 
     function hasNot(p) {
@@ -678,7 +735,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             makeError(ctx);
         };
 
-        prod = new Production(() => "!" + p, true, action);
+        prod = new Production(() => "!" + p, true, p, action);
         return prod;
     }
 
@@ -696,7 +753,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             return k.withContent(fkt);
         };
 
-        return new Production(() => name, memoized, action);
+        return new Production(name, memoized, p, action);
     }
 
     function test(name, memoized, p, f) {
@@ -712,7 +769,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             makeError(ctx);
         };
 
-        return new Production(() => name, memoized, action);
+        return new Production(name, memoized, p, action);
     }
 
     class LateBound {
@@ -722,17 +779,21 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         constructor(wrapper = x => x) {
             testType(wrapper, funcType(1));
 
+            this.#inner = null;
+            const getInner = () => {
+                if (!this.#inner) throw new Error("Inner production not bound yet.");
+                return [this.#inner];
+            };
+
             const action = (ctx, makeError) => {
                 testType(ctx, ParseContext);
                 testType(makeError, funcType(0));
-                if (!this.#inner) throw new Error("Not set yet.");
-                return this.#inner.parse(ctx);
+                return getInner()[0].parse(ctx);
             };
 
-            const toS = () => this.#inner ? this.#inner + " (late bound)" : "<NOt BOUND>";
+            const toS = () => this.#inner ? this.#inner + " (late bound)" : "<NOT BOUND>";
 
-            this.#inner = null;
-            this.#outer = wrapper(new Production(toS, false, action));
+            this.#outer = wrapper(new Production(toS, false, getInner, action));
         }
 
         set inner(inner) {
@@ -785,9 +846,9 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             this.#empty = () => cEmpty;
             this.#rejects = () => cRejects;
 
-            this.#literal = (value, output = value) => {
+            this.#literal = (value, output = value, name = undefined) => {
                 testType(value, STRING);
-                return this.#wrapper(literal(value, output));
+                return this.#wrapper(literal(value, output, name));
             };
 
             this.#sequence = (name, ps, f = x => x) => {
@@ -818,7 +879,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
 
             this.#opt = (p, defaultValue = cEmpty) => {
                 testType(p, Production);
-                return this.choice(p + "?", [p, xform("" + cEmpty, false, cEmpty, x => defaultValue)]);
+                return this.choice(p + "?", [p, xform(p + "? [NOT FOUND]", false, cEmpty, x => defaultValue)]);
             };
 
             this.#has = (p) => {
@@ -917,5 +978,5 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
     };
     Object.freeze(ProductionFactory.prototype);
 
-    return [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Production, LateBound, Trace, ProductionFactory];
+    return [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Production, Grammar, LateBound, Trace, ProductionFactory];
 })();

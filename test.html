@@ -33,6 +33,7 @@
                 console.log(XJSON.json5('{"a": "b", \'c\': true, "d": false, "eˁ": null, "f": ["g", "h", \'i\', /*bla*/ 123456789012345678901234567890, ], //\n }'));
                 console.log(XJSON.json5('{a: "b", \'c\': true, "d": false, eˁ: null, f: ["g", "h", \'i\', /*bla*/ 123456789012345678901234567890] //\n }'));
                 console.log(XJSON.json5('{a: "b", \'c\': true, "d": false, e: ["g", "h", \'i\', 123456789012345678901234567890], \\u{02AE}: "\\u{02AE}" }'));
+                console.log(XJSON.json5('{s\\u{2420E}: -Infinity}')["s𤈎"] === -Infinity);
             }
 
             async function testDataTables() {

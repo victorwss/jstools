@@ -34,6 +34,14 @@ const [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFI
                 : s.constructor;
     }
 
+    function spellOutType(what) {
+        const name = what.name;
+        if (name) return name;
+        if (what instanceof Array) return "[" + what.map(spellOutType).join(", ") + "]";
+        if (what instanceof Object) return "{" + what.keys().map(k => k + ": " + spellOutType(what[k])).join(", ") + "}";
+        throw new Error("Can't find a name for ${what}");
+    }
+
     class OrType {
         #subtypes;
 
@@ -41,6 +49,7 @@ const [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFI
             testType(subtypes, Array);
             if (subtypes.length < 2) throw new TypeError("Too few types to OR-out.");
             this.#subtypes = subtypes;
+            this.name; // Test if no error will blow up.
         }
 
         get subtypes() {
@@ -48,7 +57,7 @@ const [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFI
         }
 
         get name() {
-            return "[" + this.subtypes.map(z => z.name).join(" OR ") + "]";
+            return "[" + this.subtypes.map(spellOutType).join(" OR ") + "]";
         }
     }
 
@@ -106,12 +115,14 @@ const [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFI
     function testType(whatGot, whatShouldBe) {
         const whatIs = getType(whatGot);
 
+        const errorTxt = `Is ${spellOutType(whatIs)} but should be ${spellOutType(whatShouldBe)}.`;
+
         if (whatShouldBe === ANY || whatIs === whatShouldBe) {
             return;
         }
 
         if (defaultTypesList.includes(whatShouldBe)) {
-            throw new TypeError(`Is ${whatIs.name} but should be ${whatShouldBe.name}.`);
+            throw new TypeError(errorTxt);
         }
 
         if (whatShouldBe.constructor === OrType) {
@@ -123,16 +134,16 @@ const [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFI
                     if (!(e instanceof TypeError)) throw e;
                 }
             }
-            throw new TypeError(`Is ${whatIs.name} but should be ${whatShouldBe.name}.`);
+            throw new TypeError(errorTxt);
         }
 
         if (whatShouldBe.constructor === FuncType) {
-            if (whatIs !== FUNCTION) throw new TypeError(`Is ${whatIs.name} but should be ${whatShouldBe.name}.`);
+            if (whatIs !== FUNCTION) throw new TypeError(errorTxt);
             const d = whatShouldBe.min === whatShouldBe.max;
             const m1 = d ? "at least " : "";
             const m2 = d ? "at most "  : "";
-            if (whatGot.length < whatShouldBe.min) throw new TypeError(`Function should have ${m1}${whatShouldBe.min} parameters, but have ${whatGot.length}.`);
-            if (whatGot.length > whatShouldBe.max) throw new TypeError(`Function should have ${m2}${whatShouldBe.max} parameters, but have ${whatGot.length}.`);
+            if (whatGot.length < whatShouldBe.min) throw new TypeError(`${errorTxt} Function should have ${m1}${whatShouldBe.min} parameters, but have ${whatGot.length}.`);
+            if (whatGot.length > whatShouldBe.max) throw new TypeError(`${errorTxt} Function should have ${m2}${whatShouldBe.max} parameters, but have ${whatGot.length}.`);
             return;
         }
 
@@ -147,13 +158,13 @@ const [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFI
         }
 
         if (whatShouldBe.constructor === Object) {
-            if (whatIs !== Object) throw new TypeError(`Is ${whatIs.name} but should be plain object.`);
+            if (whatIs !== Object) throw new TypeError(errorTxt);
             const properties = whatShouldBe.keys();
             for (const p in properties) {
-                if (!(p in whatGot)) throw new TypeError(`Missing property ${p}.`);
+                if (!(p in whatGot)) throw new TypeError(`${errorTxt} Missing property ${p}.`);
             }
             for (const p in whatGot) {
-                if (!(p in properties)) throw new TypeError(`Unexpected property ${p}.`);
+                if (!(p in properties)) throw new TypeError(`${errorTxt} Unexpected property ${p}.`);
             }
             for (const p in properties) {
                 testType(whatIs[p], properties[p]);
@@ -162,7 +173,7 @@ const [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFI
         }
 
         if (typeof whatShouldBe !== "function" || !(whatGot instanceof whatShouldBe)) {
-            throw new TypeError(`Is ${whatIs.name} but should be ${whatShouldBe.name}.`);
+            throw new TypeError(errorTxt);
         }
     };
 
