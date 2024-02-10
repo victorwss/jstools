@@ -48,6 +48,11 @@ const UnicodeTable = (() => {
             throw new Error();
         }
 
+        static isValidCodePoint(c) {
+            testType(c, INT);
+            return c >= 0 && c <= 0x10FFFF;
+        }
+
         static isStartingIdentifierSymbol(c) {
             testType(c, STRING);
             return UnicodeTable.isStartingIdentifierCodePoint(checkString(c));
@@ -125,7 +130,7 @@ const UnicodeTable = (() => {
 
         static isNonCharacterCodePoint(c) {
             testType(c, INT);
-            return (c >= 0xFDD0 && c <= 0xFDEF) || (c >= 0 && c <= 0x10FFFF && c % 65536 >= 65534);
+            return (c >= 0xFDD0 && c <= 0xFDEF) || (UnicodeTable.isValidCodePoint(c) && c % 65536 >= 65534);
         }
 
         static isUnusableCodeSymbol(c) {
@@ -145,7 +150,7 @@ const UnicodeTable = (() => {
 
         static isUsableCodePoint(c) {
             testType(c, INT);
-            return c >= 0 && c <= 0x10FFFF
+            return UnicodeTable.isValidCodePoint(c)
                     && !UnicodeTable.isControlCodePoint(c)
                     && !UnicodeTable.isSurrogatePoint(c)
                     && !UnicodeTable.isPrivateUseCodePoint(c)
@@ -159,7 +164,7 @@ const UnicodeTable = (() => {
 
         static isStringCodePoint(c) {
             testType(c, INT);
-            return c >= 0 && c <= 0x10FFFF && c !== 10 && c !== 13 && c !== 34 && c !== 92;
+            return UnicodeTable.isValidCodePoint(c) && c !== 10 && c !== 13 && c !== 34 && c !== 92;
         }
 
         static isWhitespaceSymbol(c) {
