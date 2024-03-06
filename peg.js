@@ -280,21 +280,49 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
     }
     Object.freeze(Memory.prototype);
 
+    class Warning {
+        #pos;
+        #text;
+
+        constructor(pos, text) {
+            testType(pos, ParsePosition);
+            testType(text, STRING);
+            this.checkFinal(Warning);
+            this.#pos = pos;
+            this.#text = text;
+        }
+
+        get pos() {
+            return this.#pos;
+        }
+
+        get text() {
+            return this.#text;
+        }
+    }
+    Object.freeze(Warning.prototype);
+
     class ParseContext {
         #src;
         #memo;
         #pos;
+        #data;
+        #warnings;
 
-        constructor(src, memo, pos) {
+        constructor(src, memo, pos, data = {}, warnings = []) {
             testType(src, Source);
             testType(memo, Memory);
             testType(pos, ParsePosition);
+            testType(data, Object);
+            testType(warnings, [Warning]);
             if (pos.src !== src) throw new Error(`Incompatible source, was ${pos.src} expected ${src}.`);
             if (memo.src !== src) throw new Error(`Incompatible source, was ${memo.src} expected ${src}.`);
             this.checkFinal(ParseContext);
             this.#src = src;
             this.#memo = memo;
             this.#pos = pos;
+            this.#data = data;
+            this.#warnings = warnings;
             Object.freeze(this);
         }
 
@@ -344,7 +372,25 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         on(otherPos) {
             testType(otherPos, ParsePosition);
             if (otherPos.src !== this.src) throw new Error(`Incompatible source, was ${otherPos.src} expected ${this.src}.`);
-            return new ParseContext(this.src, this.memo, otherPos);
+            return new ParseContext(this.#src, this.#memo, otherPos, this.#data, this.#warnings);
+        }
+
+        withData(newData) {
+            testType(newData, Object);
+            return new ParseContext(this.#src, this.#memo, this.#pos, { ...newData }, this.#warnings);
+        }
+
+        addWarning(warning) {
+            testType(warning, STRING);
+            return new ParseContext(this.#src, this.#memo, this.#pos, this.#data, [...this.#warnings, new Warning(this.pos, warning)]);
+        }
+
+        get data() {
+            return {...this.#data};
+        }
+
+        get warnings() {
+            return [...this.#warnings];
         }
 
         toString() {
@@ -431,7 +477,6 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             }
             this.#innerProductions = innerProductions;
             this.#innerParse = innerParse;
-            //console.log(`Production ${this.#name} ${this.#uuid}`);
             Object.freeze(this);
         }
 
@@ -468,6 +513,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             }
             try {
                 const out = this.#innerParse(ctx, makeError);
+                testType(out, Parsed);
                 ctx.memo.save(this, out);
                 return out;
             } catch (e2) {
@@ -641,16 +687,16 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             testType(makeError, funcType(0));
             const a = ctx;
             const r = [];
-            while (true) {
-                try {
+            try {
+                while (true) {
                     const k = p.parse(ctx);
                     r.push(k.content);
                     ctx = ctx.on(k.to);
-                } catch (e) {
-                    if (!(e instanceof ParseError)) throw e;
-                    const fkt = f(r);
-                    return a.parsedTo(fkt, ctx.pos);
                 }
+            } catch (e) {
+                if (!(e instanceof ParseError)) throw e;
+                const fkt = f(r);
+                return a.parsedTo(fkt, ctx.pos);
             }
         };
 
@@ -666,17 +712,17 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             testType(makeError, funcType(0));
             const a = ctx;
             const r = [];
-            while (true) {
-                try {
+            try {
+                while (true) {
                     const k = p.parse(ctx);
                     r.push(k.content);
                     ctx = ctx.on(k.to);
-                } catch (e) {
-                    if (!(e instanceof ParseError)) throw e;
-                    if (r.length === 0) makeError();
-                    const fkt = f(r);
-                    return a.parsedTo(fkt, ctx.pos);
                 }
+            } catch (e) {
+                if (!(e instanceof ParseError)) throw e;
+                if (r.length === 0) makeError();
+                const fkt = f(r);
+                return a.parsedTo(fkt, ctx.pos);
             }
         };
 
@@ -686,18 +732,24 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
     function choice(name, ps, f = x => x) {
         testType(name, STRING);
         testType(ps, [Production]);
-        testType(f, funcType(1));
+        testType(f, funcType(1, 2));
         if (ps.length < 2) throw new Error("This choice has too few options to make sense.");
 
         const action = (ctx, makeError) => {
             testType(ctx, ParseContext);
             testType(makeError, funcType(0));
             for (const p of ps) {
+                let k;
                 try {
-                    return f(p.parse(ctx));
+                    k = p.parse(ctx);
                 } catch (e) {
                     if (!(e instanceof ParseError)) throw e;
+                    continue;
                 }
+                const kt = k.content;
+                const kd = k.data;
+                const fkt = f(kt, kd);
+                return k.withContent(fkt);
             }
             makeError();
         };
@@ -742,15 +794,53 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
     function xform(name, memoized, p, f) {
         testType(name, STRING);
         testType(p, Production);
-        testType(f, funcType(1));
+        testType(f, funcType(1, 2));
 
         const action = (ctx, makeError) => {
             testType(ctx, ParseContext);
             testType(makeError, funcType(0));
             const k = p.parse(ctx);
             const kt = k.content;
-            const fkt = f(kt);
+            const kd = k.data;
+            const fkt = f(kt, kd);
             return k.withContent(fkt);
+        };
+
+        return new Production(name, memoized, p, action);
+    }
+
+    function warn(name, memoized, p, f) {
+        testType(name, STRING);
+        testType(p, Production);
+        testType(f, funcType(1, 2));
+
+        const action = (ctx, makeError) => {
+            testType(ctx, ParseContext);
+            testType(makeError, funcType(0));
+            const k = p.parse(ctx);
+            const kt = k.content;
+            const kd = k.data;
+            const fkt = f(kt, kd);
+            testType(fkt, STRING);
+            return k.addWarning(fkt);
+        };
+
+        return new Production(name, memoized, p, action);
+    }
+
+    function xformData(name, memoized, p, f) {
+        testType(name, STRING);
+        testType(p, Production);
+        testType(f, funcType(1, 2));
+
+        const action = (ctx, makeError) => {
+            testType(ctx, ParseContext);
+            testType(makeError, funcType(0));
+            const k = p.parse(ctx);
+            const kt = k.content;
+            const kd = k.data;
+            const fkt = f(kt, kd);
+            return k.withData(fkt);
         };
 
         return new Production(name, memoized, p, action);
@@ -759,13 +849,17 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
     function test(name, memoized, p, f) {
         testType(name, STRING);
         testType(p, Production);
-        testType(f, funcType(1));
+        testType(f, funcType(1, 2));
 
         const action = (ctx, makeError) => {
             testType(ctx, ParseContext);
             testType(makeError, funcType(0));
             const k = p.parse(ctx);
-            if (f(k.content)) return k;
+            const kt = k.content;
+            const kd = k.data;
+            const fkt = f(kt, kd);
+            testType(fkt, BOOLEAN);
+            if (fkt) return k;
             makeError(ctx);
         };
 
@@ -824,6 +918,8 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         #has;
         #hasNot;
         #xform;
+        #warn;
+        #xformData;
         #test;
         #lateBound;
         #alternation;
@@ -873,7 +969,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             this.#choice = (name, ps, f = x => x) => {
                 testType(name, STRING);
                 testType(ps, [Production]);
-                testType(f, funcType(1));
+                testType(f, funcType(1, 2));
                 return this.#wrapper(choice(name, ps, f));
             };
 
@@ -896,15 +992,31 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
                 testType(name, STRING);
                 testType(memoized, BOOLEAN);
                 testType(p, Production);
-                testType(f, funcType(1));
+                testType(f, funcType(1, 2));
                 return this.#wrapper(xform(name, memoized, p, f));
+            };
+
+            this.#warn = (name, memoized, p, f) => {
+                testType(name, STRING);
+                testType(memoized, BOOLEAN);
+                testType(p, Production);
+                testType(f, funcType(1, 2));
+                return this.#wrapper(warn(name, memoized, p, f));
+            };
+
+            this.#xformData = (name, memoized, p, f) => {
+                testType(name, STRING);
+                testType(memoized, BOOLEAN);
+                testType(p, Production);
+                testType(f, funcType(1, 2));
+                return this.#wrapper(xformData(name, memoized, p, f));
             };
 
             this.#test = (name, memoized, p, f) => {
                 testType(name, STRING);
                 testType(memoized, BOOLEAN);
                 testType(p, Production);
-                testType(f, funcType(1));
+                testType(f, funcType(1, 2));
                 return this.#wrapper(test(name, memoized, p, f));
             };
 

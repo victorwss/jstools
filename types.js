@@ -39,7 +39,7 @@ const [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFI
         if (name) return name;
         if (what instanceof Array) return "[" + what.map(spellOutType).join(", ") + "]";
         if (what instanceof Object) return "{" + what.keys().map(k => k + ": " + spellOutType(what[k])).join(", ") + "}";
-        throw new Error("Can't find a name for ${what}");
+        throw new Error(`Can't find a name for ${what}`);
     }
 
     class OrType {
@@ -75,7 +75,7 @@ const [INT, FLOAT, BOOLEAN, FUNCTION, BIGINT, UNDEFINED, NULL, NAN, STRING, INFI
                 this.#max = specs[0];
             } else if (specs.length === 2) {
                 testType(specs[0], INT, x => x >= 0);
-                testType(specs[1], orType(INT, Infinity));
+                testType(specs[1], orType(INT, INFINITY));
                 if (specs[1] < specs[0]) throw new TypeError("The maximum number of parameters can't be smaller than the minimum.");
                 this.#min = specs[0];
                 this.#max = specs[1];

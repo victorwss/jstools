@@ -423,7 +423,7 @@ const [ParseFlags, XJSON] = (() => {
                 return (a * 10n ** bs + fold10(b)) * 10n ** (c - bs);
             };
 
-            // Optional signal. Standard JSON doesn't allow a following +, so we have signalm for that.
+            // Optional signal. Standard JSON doesn't allow a leading +, so we have signalm for that.
             const plusSign  = literal("+",  1n);
             const minusSign = literal("-", -1n);
             const noSign    = xform("No signal", false, empty, z => 1n);
