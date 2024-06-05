@@ -1,13 +1,18 @@
 "use strict";
 
 // Check if those were correctly imported.
-INT; FLOAT; BOOLEAN; FUNCTION; BIGINT; UNDEFINED; NULL; NAN; STRING; INFINITY; ANY; typeName; getType; orType; funcType; testType; [].checkFinal; [].checkAbstract;
+Types;
 
-const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Production, Grammar, LateBound, Trace, ProductionFactory] = (() => {
+const ProductionFactory = (() => {
 
-    function newUuid() {
-        return URL.createObjectURL(new Blob([])).slice(-36);
-    }
+    const testSignature = Types.testSignature;
+    const unionType = Types.unionType;
+    const testType = Types.testType;
+    const funcType = Types.funcType;
+    const optParam = Types.optParam;
+    const STRING = Types.STRING;
+    const INT = Types.INT;
+    const ANY = Types.ANY;
 
     class Source {
         #raw;
@@ -16,9 +21,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         #uuid;
 
         constructor(raw, slicer, length) {
-            testType(raw, orType(STRING, Array));
-            testType(slicer, funcType(2));
-            testType(length, INT);
+            testSignature([unionType(STRING, Array), funcType(2), INT], arguments);
             this.checkFinal(Source);
             this.#slicer = slicer;
             this.#raw = raw;
@@ -36,14 +39,13 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         }
 
         at(n) {
-            testType(n, INT);
+            testSignature([INT], arguments);
             if (n < 0 || n > this.length) throw new Error(`Bad value ${n} is not between 0 and ${this.length - 1}.`);
             return new ParsePosition(this, n);
         }
 
         slice(from, to) {
-            testType(from, ParsePosition);
-            testType(to, ParsePosition);
+            testSignature([ParsePosition, ParsePosition], arguments);
             if (from.src !== this) throw new Error(`Initial position is not from this source.`);
             if (to.src !== this) throw new Error(`End position is not from this source.`);
             return this.#slicer(from.location, to.location);
@@ -54,7 +56,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         }
 
         static create(raw) {
-            testType(raw, orType(STRING, Array));
+            testSignature([unionType(STRING, Array)], arguments);
             const slicer = raw instanceof Array ? (b, c) => raw.slice(b, c) : (b, c) => raw.substring(b, c);
             return new Source(raw, slicer, raw.length);
         }
@@ -70,8 +72,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         #location;
 
         constructor(src, location) {
-            testType(src, Source);
-            testType(location, INT);
+            testSignature([Source, INT], arguments);
             this.checkFinal(ParsePosition);
             if (location < 0 || location > src.length) throw new Error(`Bad value ${n} is not between 0 and ${src.length - 1}.`);
             this.#src = src;
@@ -96,7 +97,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         }
 
         move(n) {
-            testType(n, INT);
+            testSignature([INT], arguments);
             let p = this.location + n;
             if (p < 0) p = 0;
             if (p > this.src.length) p = this.src.length;
@@ -104,21 +105,22 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         }
 
         slice(length) {
-            testType(length, INT);
+            testSignature([INT], arguments);
             return this.src.slice(this, this.move(length));
         }
 
         parsedTo(what, end) {
-            testType(end, ParsePosition);
+            testSignature([ANY, ParsePosition], arguments);
             return new Parsed(this.src, this, end, what);
         }
 
         parsed(what, size) {
-            testType(size, INT);
+            testSignature([ANY, INT], arguments);
             return this.parsedTo(what, this.move(size));
         }
 
         toString() {
+            testSignature([], arguments);
             return `${this.location} [${this.src}]`;
         }
     }
@@ -131,9 +133,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         #content;
 
         constructor(src, from, to, content) {
-            testType(src, Source);
-            testType(from, ParsePosition);
-            testType(to, ParsePosition);
+            testSignature([Source, ParsePosition, ParsePosition, ANY], arguments);
             this.checkFinal(Parsed);
             if (from.src !== src) throw new Error(`Initial position is not from this source.`);
             if (to.src !== src) throw new Error(`End position is not from this source.`);
@@ -173,6 +173,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         }
 
         toString() {
+            testSignature([], arguments);
             return `${this.src} from ${this.from} to ${this.to} [${this.content}]`;
         }
     }
@@ -182,8 +183,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         #pos;
 
         constructor(p, pos) {
-            testType(p, Production);
-            testType(pos, ParsePosition);
+            testSignature([Production, ParsePosition], arguments);
             super(`${p} not found at ${pos}.`);
             this.#pos = pos;
         }
@@ -213,7 +213,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         #deadStacks;
 
         constructor(src) {
-            testType(src, Source);
+            testSignature([Source, Memory], arguments);
             this.checkFinal(Memory);
             this.#src = src;
             this.#memo = {};
@@ -227,7 +227,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         }
 
         #forProduction(p) {
-            testType(p, Production);
+            testSignature([Production], arguments);
             let sub = this.#memo[p.name];
             if (!sub) {
                 sub = this.#memo[p.name] = new Array(this.#src.length);
@@ -236,22 +236,19 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         }
 
         save(p, what) {
-            testType(p, Production);
-            testType(what, Parsed);
+            testSignature([Production, Parsed], arguments);
             if (what.src !== this.#src) throw new Error(`Incompatible source, was ${what.src} expected ${this.#src}.`);
             this.#forProduction(p)[what.location] = what;
         }
 
         saveError(p, what) {
-            testType(p, Production);
-            testType(what, ParseError);
+            testSignature([Production, Parsed], arguments);
             if (what.src !== this.#src) throw new Error(`Incompatible source, was ${what.src} expected ${this.#src}.`);
             this.#forProduction(p)[what.location] = what;
         }
 
         load(p, pos) {
-            testType(p, Production);
-            testType(pos, ParsePosition);
+            testSignature([Production, ParsePosition], arguments);
             if (pos.src !== this.#src) throw new Error(`Incompatible source, was ${pos.src} expected ${this.#src}.`);
             const e = this.#forProduction(p)[pos.location];
             if (!e) throw new NotFoundError();
@@ -260,16 +257,18 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         }
 
         toString() {
+            testSignature([], arguments);
             return `{src: ${this.src}}`;
         }
 
         pushTracingCall(call) {
-            testType(call, Trace);
+            testSignature([Trace], arguments);
             if (this.#tracingCalls.length > 0) this.#tracingCalls.at(-1).subcall(call);
             this.#tracingCalls.push(call);
         }
 
         popTracingCall() {
+            testSignature([], arguments);
             if (this.#tracingCalls.length === 1) this.#deadStacks.push(this.#tracingCalls[0]);
             this.#tracingCalls.pop();
         }
@@ -285,8 +284,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         #text;
 
         constructor(pos, text) {
-            testType(pos, ParsePosition);
-            testType(text, STRING);
+            testSignature([ParsePosition, STRING], arguments);
             this.checkFinal(Warning);
             this.#pos = pos;
             this.#text = text;
@@ -310,11 +308,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         #warnings;
 
         constructor(src, memo, pos, data = {}, warnings = []) {
-            testType(src, Source);
-            testType(memo, Memory);
-            testType(pos, ParsePosition);
-            testType(data, Object);
-            testType(warnings, [Warning]);
+            testSignature([Source, Memory, ParsePosition, Object, [Warning]], arguments);
             if (pos.src !== src) throw new Error(`Incompatible source, was ${pos.src} expected ${src}.`);
             if (memo.src !== src) throw new Error(`Incompatible source, was ${memo.src} expected ${src}.`);
             this.checkFinal(ParseContext);
@@ -351,37 +345,38 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         }
 
         move(n) {
+            testSignature([INT], arguments);
             return this.pos.move(n);
         }
 
         slice(length) {
-            testType(length, INT);
+            testSignature([INT], arguments);
             return this.pos.slice(length);
         }
 
         parsedTo(what, end) {
-            testType(end, ParsePosition);
+            testSignature([ANY, ParsePosition], arguments);
             return this.pos.parsedTo(what, end);
         }
 
         parsed(what, size) {
-            testType(size, INT);
+            testSignature([ANY, INT], arguments);
             return this.pos.parsed(what, size);
         }
 
         on(otherPos) {
-            testType(otherPos, ParsePosition);
+            testSignature([ParsePosition], arguments);
             if (otherPos.src !== this.src) throw new Error(`Incompatible source, was ${otherPos.src} expected ${this.src}.`);
             return new ParseContext(this.#src, this.#memo, otherPos, this.#data, this.#warnings);
         }
 
         withData(newData) {
-            testType(newData, Object);
+            testSignature([Object], arguments);
             return new ParseContext(this.#src, this.#memo, this.#pos, { ...newData }, this.#warnings);
         }
 
         addWarning(warning) {
-            testType(warning, STRING);
+            testSignature([STRING], arguments);
             return new ParseContext(this.#src, this.#memo, this.#pos, this.#data, [...this.#warnings, new Warning(this.pos, warning)]);
         }
 
@@ -394,6 +389,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         }
 
         toString() {
+            testSignature([], arguments);
             return `{memo: ${this.memo}, pos: ${this.pos}}`;
         }
     }
@@ -406,8 +402,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         #subcalls;
 
         constructor(production, ctx) {
-            testType(production, Production);
-            testType(ctx, ParseContext);
+            testSignature([Production, ParseContext], arguments);
             this.checkFinal(Trace);
             this.#production = production;
             this.#pos = ctx.pos;
@@ -429,19 +424,20 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         }
 
         subcall(t) {
-            testType(t, Trace);
+            testSignature([Trace], arguments);
             if (t.result) throw new Error("Subcall already ended.");
             if (this.#result) throw new Error("Current call already ended.");
             this.#subcalls.push(t);
         }
 
         set returned(value) {
+            testSignature([ANY], arguments);
             if (this.#result) throw new Error("Current call already ended, can't end twice.");
             this.#result = {ok: value};
         }
 
         set thrown(value) {
-            testType(value, Error);
+            testSignature([Error], arguments);
             if (this.#result) throw new Error("Current call already ended, can't end twice.");
             this.#result = {error: value, msg: value + ""};
         }
@@ -456,10 +452,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         #innerParse;
 
         constructor(namer, memoized, innerProductions, innerParse) {
-            testType(namer, orType(STRING, funcType(0)));
-            testType(memoized, BOOLEAN);
-            testType(innerProductions, orType([Production], Production, funcType(0)));
-            testType(innerParse, funcType(2));
+            testSignature([unionType(STRING, funcType(0)), BOOLEAN, unionType([Production], Production, funcType(0)), funcType(2)], arguments);
             this.checkFinal(Production);
             if (getType(namer) === STRING) {
                 const n = namer;
@@ -472,8 +465,8 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
                 innerProductions = [innerProductions];
             }
             if (innerProductions instanceof Array) {
-                const arr = [...innerProductions];
-                innerProductions = () => [...arr];
+                const arr = [...innerProductions]; // A copy, so changes in the given array can't corrupt this object.
+                innerProductions = () => [...arr]; // Returns a copy, so changes in the returned array can't also corrupt this object.
             }
             this.#innerProductions = innerProductions;
             this.#innerParse = innerParse;
@@ -481,7 +474,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         }
 
         parse(ctx) {
-            testType(ctx, ParseContext);
+            testSignature([ParseContext], arguments);
             const tracing = new Trace(this, ctx);
             ctx.memo.pushTracingCall(tracing);
             try {
@@ -501,8 +494,11 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         }
 
         #middleParse(ctx) {
-            testType(ctx, ParseContext);
-            const makeError = () => { throw new ParseError(this, ctx.pos); };
+            testSignature([ParseContext], arguments);
+            const makeError = (function makeError() {
+                testSignature([], arguments);
+                throw new ParseError(this, ctx.pos);
+            });
             if (!this.#memoized) {
                 return this.#innerParse(ctx, makeError);
             }
@@ -524,6 +520,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         }
 
         toString() {
+            testSignature([], arguments);
             this.#name = this.#namer();
             return this.#name;
         }
@@ -547,7 +544,7 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         #productions;
 
         constructor(root) {
-            testType(root, Production);
+            testSignature([Production], arguments);
 
             const pending = [root];
             const prods = {};
@@ -568,8 +565,8 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         get parse() {
             const root = this.#root;
 
-            return function parse(txt) {
-                testType(txt, orType(STRING, Array));
+            return (function parse(txt) {
+                testSignature([unionType(STRING, Array)], arguments);
                 const s = Source.create(txt);
                 const ctx = s.start();
                 try {
@@ -578,92 +575,97 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
                 } finally {
                     console.log(ctx.memo.deadStacks);
                 }
-            };
+            });
         };
     }
     Object.freeze(Grammar.prototype);
 
     function literal(value, output = value, name = `Literal ${value}`) {
-        testType(value, STRING);
-        testType(name, STRING);
+        testSignature([ANY, STRING, STRING], arguments);
         if (value.length === 0) throw new Error("The value is empty. Consider using the empty production instead.");
 
-        const action = (ctx, makeError) => {
-            testType(ctx, ParseContext);
-            testType(makeError, funcType(0));
+        function action(ctx, makeError) {
+            testSignature([ParseContext, funcType(0)], arguments);
             const len = value.length;
             const s = ctx.slice(len);
             if (s === value) return ctx.parsed(output, len);
             makeError();
-        };
+        }
 
         return new Production(name, false, [], action);
     }
 
     function anyChar() {
-        const action = (ctx, makeError) => {
-            testType(ctx, ParseContext);
-            testType(makeError, funcType(0));
+        testSignature([], arguments);
+
+        function action(ctx, makeError) {
+            testSignature([ParseContext, funcType(0)], arguments);
             const s = ctx.slice(1);
             if (s === "") makeError();
             return ctx.parsed(s, 1);
-        };
+        }
+
         return new Production("Any character", false, [], action);
     }
 
     function bof() {
+        testSignature([], arguments);
         let prod;
-        const action = (ctx, makeError) => {
-            testType(ctx, ParseContext);
-            testType(makeError, funcType(0));
+
+        function action(ctx, makeError) {
+            testSignature([ParseContext, funcType(0)], arguments);
             if (!ctx.begin) makeError();
             return ctx.parsed(prod, 0);
-        };
+        }
+
         prod = new Production("BOF", false, [], action);
         return prod;
     }
 
     function eof() {
+        testSignature([], arguments);
         let prod;
-        const action = (ctx, makeError) => {
-            testType(ctx, ParseContext);
-            testType(makeError, funcType(0));
+
+        function action(ctx, makeError) {
+            testSignature([ParseContext, funcType(0)], arguments);
             if (!ctx.end) makeError();
             return ctx.parsed(prod, 0);
-        };
+        }
+
         prod = new Production("EOF", false, [], action);
         return prod;
     }
 
     function empty() {
+        testSignature([], arguments);
         let prod;
-        const action = (ctx, makeError) => {
-            testType(ctx, ParseContext);
-            testType(makeError, funcType(0));
+
+        function action(ctx, makeError) {
+            testSignature([ParseContext, funcType(0)], arguments);
             return ctx.parsed(prod, 0);
-        };
+        }
+
         prod = new Production("Empty", false, [], action);
         return prod;
     }
 
     function rejects() {
-        const action = (ctx, makeError) => {
-            testType(ctx, ParseContext);
-            testType(makeError, funcType(0));
+        testSignature([], arguments);
+
+        function action(ctx, makeError) {
+            testSignature([ParseContext, funcType(0)], arguments);
             makeError();
-        };
+        }
+
         return new Production("Rejects", false, [], action);
     }
 
     function sequence(name, ps, f = x => x) {
-        testType(name, STRING);
-        testType(ps, [Production]);
-        testType(f, funcType(1));
+        testSignature([String, [Production], funcType(1)], arguments, 1);
         if (ps.length < 2) throw new Error("This sequence is too short to make sense.");
 
-        const action = (ctx, makeError) => {
-            testType(ctx, ParseContext);
-            testType(makeError, funcType(0));
+        function action(ctx, makeError) {
+            testSignature([ParseContext, funcType(0)], arguments);
             const a = ctx;
             const r = [];
             for (const p of ps) {
@@ -673,18 +675,16 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
             }
             const fkt = f(r);
             return a.parsedTo(fkt, ctx.pos);
-        };
+        }
 
         return new Production(name, true, ps, action);
     }
 
     function star(p, f = x => x) {
-        testType(p, Production);
-        testType(f, funcType(1));
+        testSignature([Production, funcType(1)], arguments, 1);
 
-        const action = (ctx, makeError) => {
-            testType(ctx, ParseContext);
-            testType(makeError, funcType(0));
+        function action(ctx, makeError) {
+            testSignature([ParseContext, funcType(0)], arguments);
             const a = ctx;
             const r = [];
             try {
@@ -698,18 +698,16 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
                 const fkt = f(r);
                 return a.parsedTo(fkt, ctx.pos);
             }
-        };
+        }
 
         return new Production(() => p + "*", true, p, action);
     }
 
     function plus(p, f = x => x) {
-        testType(p, Production);
-        testType(f, funcType(1));
+        testSignature([Production, funcType(1)], arguments, 1);
 
-        const action = (ctx, makeError) => {
-            testType(ctx, ParseContext);
-            testType(makeError, funcType(0));
+        function action(ctx, makeError) {
+            testSignature([ParseContext, funcType(0)], arguments);
             const a = ctx;
             const r = [];
             try {
@@ -724,20 +722,17 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
                 const fkt = f(r);
                 return a.parsedTo(fkt, ctx.pos);
             }
-        };
+        }
 
         return new Production(() => p + "+", true, p, action);
     }
 
     function choice(name, ps, f = x => x) {
-        testType(name, STRING);
-        testType(ps, [Production]);
-        testType(f, funcType(1, 2));
+        testSignature([STRING, [Production], funcType(1, 2)], arguments, 1);
         if (ps.length < 2) throw new Error("This choice has too few options to make sense.");
 
-        const action = (ctx, makeError) => {
-            testType(ctx, ParseContext);
-            testType(makeError, funcType(0));
+        function action(ctx, makeError) {
+            testSignature([ParseContext, funcType(0)], arguments);
             for (const p of ps) {
                 let k;
                 try {
@@ -752,32 +747,30 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
                 return k.withContent(fkt);
             }
             makeError();
-        };
+        }
 
         return new Production(name, true, ps, action);
     }
 
     function has(p) {
-        testType(p, Production);
+        testSignature([Production], arguments);
 
-        const action = (ctx, makeError) => {
-            testType(ctx, ParseContext);
-            testType(makeError, funcType(0));
+        function action(ctx, makeError) {
+            testSignature([ParseContext, funcType(0)], arguments);
             const a = pos;
             const k = p.parse(ctx);
             return a.parsed(k, 0);
-        };
+        }
 
         return new Production(() => "&" + p, true, p, action);
     }
 
     function hasNot(p) {
-        testType(p, Production);
+        testSignature([Production], arguments);
 
         let prod;
-        const action = (ctx, makeError) => {
-            testType(ctx, ParseContext);
-            testType(makeError, funcType(0));
+        function action(ctx, makeError) {
+            testSignature([ParseContext, funcType(0)], arguments);
             try {
                 p.parse(ctx);
             } catch (e) {
@@ -785,75 +778,63 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
                 return ctx.parsed(prod, 0);
             }
             makeError(ctx);
-        };
+        }
 
         prod = new Production(() => "!" + p, true, p, action);
         return prod;
     }
 
     function xform(name, memoized, p, f) {
-        testType(name, STRING);
-        testType(p, Production);
-        testType(f, funcType(1, 2));
+        testSignature([STRING, BOOLEAN, Production, funcType(1, 2)], arguments);
 
-        const action = (ctx, makeError) => {
-            testType(ctx, ParseContext);
-            testType(makeError, funcType(0));
+        function action(ctx, makeError) {
+            testSignature([ParseContext, funcType(0)], arguments);
             const k = p.parse(ctx);
             const kt = k.content;
             const kd = k.data;
             const fkt = f(kt, kd);
             return k.withContent(fkt);
-        };
+        }
 
         return new Production(name, memoized, p, action);
     }
 
     function warn(name, memoized, p, f) {
-        testType(name, STRING);
-        testType(p, Production);
-        testType(f, funcType(1, 2));
+        testSignature([STRING, BOOLEAN, Production, funcType(1, 2)], arguments);
 
-        const action = (ctx, makeError) => {
-            testType(ctx, ParseContext);
-            testType(makeError, funcType(0));
+        function action(ctx, makeError) {
+            testSignature([ParseContext, funcType(0)], arguments);
             const k = p.parse(ctx);
             const kt = k.content;
             const kd = k.data;
             const fkt = f(kt, kd);
             testType(fkt, STRING);
             return k.addWarning(fkt);
-        };
+        }
 
         return new Production(name, memoized, p, action);
     }
 
     function xformData(name, memoized, p, f) {
-        testType(name, STRING);
-        testType(p, Production);
-        testType(f, funcType(1, 2));
+        testSignature([STRING, BOOLEAN, Production, funcType(1, 2)], arguments);
 
-        const action = (ctx, makeError) => {
-            testType(ctx, ParseContext);
-            testType(makeError, funcType(0));
+        function action(ctx, makeError) {
+            testSignature([ParseContext, funcType(0)], arguments);
             const k = p.parse(ctx);
             const kt = k.content;
             const kd = k.data;
             const fkt = f(kt, kd);
             return k.withData(fkt);
-        };
+        }
 
         return new Production(name, memoized, p, action);
     }
 
     function test(name, memoized, p, f) {
-        testType(name, STRING);
-        testType(p, Production);
-        testType(f, funcType(1, 2));
+        testSignature([STRING, BOOLEAN, Production, funcType(1, 2)], arguments);
 
-        const action = (ctx, makeError) => {
-            testType(ctx, ParseContext);
-            testType(makeError, funcType(0));
+        function action(ctx, makeError) {
+            testSignature([ParseContext, funcType(0)], arguments);
             const k = p.parse(ctx);
             const kt = k.content;
             const kd = k.data;
@@ -871,27 +852,34 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         #inner;
 
         constructor(wrapper = x => x) {
-            testType(wrapper, funcType(1));
+            testSignature([funcType(1)], arguments, 1);
 
             this.#inner = null;
-            const getInner = () => {
-                if (!this.#inner) throw new Error("Inner production not bound yet.");
-                return [this.#inner];
-            };
+            const rawInner = () => this.#inner;
 
-            const action = (ctx, makeError) => {
-                testType(ctx, ParseContext);
-                testType(makeError, funcType(0));
-                return getInner()[0].parse(ctx);
-            };
+            function getInner() {
+                testSignature([], arguments);
+                const raw = rawInner();
+                if (!raw) throw new Error("Inner production not bound yet.");
+                return [raw];
+            }
 
-            const toS = () => this.#inner ? this.#inner + " (late bound)" : "<NOT BOUND>";
+            function action(ctx, makeError) {
+                testSignature([ParseContext, funcType(0)], arguments);
+                return rawInner()[0].parse(ctx);
+            }
+
+            function toS() {
+                testSignature([], arguments);
+                const raw = rawInner();
+                return raw ? raw + " (late bound)" : "<NOT BOUND>";
+            }
 
             this.#outer = wrapper(new Production(toS, false, getInner, action));
         }
 
         set inner(inner) {
-            testType(inner, Production);
+            testSignature([Production], arguments);
             if (this.#inner) throw new Error("Already set.");
             this.#inner = inner;
         }
@@ -926,108 +914,101 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         #regroup;
 
         constructor(wrapper = x => x) {
-            testType(wrapper, funcType(1));
+            testSignature([funcType(1)], arguments, 1);
             this.checkFinal(ProductionFactory);
             this.#wrapper = wrapper;
 
+            const me = this;
             const cAnyChar = wrapper(anyChar());
             const cBof = wrapper(bof());
             const cEof = wrapper(eof());
             const cEmpty = wrapper(empty());
             const cRejects = wrapper(rejects());
 
-            this.#anyChar = () => cAnyChar;
-            this.#bof = () => cBof;
-            this.#eof = () => cEof;
-            this.#empty = () => cEmpty;
-            this.#rejects = () => cRejects;
+            this.#anyChar = (function anyChar() { testSignature([], arguments); return cAnyChar; });
+            this.#bof     = (function bof    () { testSignature([], arguments); return cBof    ; });
+            this.#eof     = (function eof    () { testSignature([], arguments); return cEof    ; });
+            this.#empty   = (function empty  () { testSignature([], arguments); return cEmpty  ; });
+            this.#rejects = (function rejects() { testSignature([], arguments); return cRejects; });
 
-            this.#literal = (value, output = value, name = undefined) => {
-                testType(value, STRING);
-                return this.#wrapper(literal(value, output, name));
-            };
+            const originalLiteral = literal;
+            this.#literal = (function literal(value, output = value, name = undefined) {
+                testSignature([STRING, STRING, unionType(STRING, UNDEFINED)], arguments, 2);
+                return wrapper(originalLiteral(value, output, name));
+            });
 
-            this.#sequence = (name, ps, f = x => x) => {
-                testType(name, STRING);
-                testType(ps, [Production]);
-                testType(f, funcType(1));
-                return this.#wrapper(sequence(name, ps, f));
-            };
+            const originalSequence = sequence;
+            this.#sequence = (function sequence(name, ps, f = x => x) {
+                testSignature([STRING, [Production], funcType(1)], arguments, 1);
+                return wrapper(originalSequence(name, ps, f));
+            });
 
-            this.#star = (p, f = x => x) => {
-                testType(p, Production);
-                testType(f, funcType(1));
-                return this.#wrapper(star(p, f));
-            };
+            const originalStar = star;
+            this.#star = (function star(p, f = x => x) {
+                testSignature([Production, funcType(1)], arguments, 1);
+                return wrapper(originalStar(p, f));
+            });
 
-            this.#plus = (p, f = x => x) => {
-                testType(p, Production);
-                testType(f, funcType(1));
-                return this.#wrapper(plus(p, f));
-            };
+            const originalPlus = plus;
+            this.#plus = (function plus(p, f = x => x) {
+                testSignature([Production, funcType(1)], arguments, 1);
+                return wrapper(originalPlus(p, f));
+            });
 
-            this.#choice = (name, ps, f = x => x) => {
-                testType(name, STRING);
-                testType(ps, [Production]);
-                testType(f, funcType(1, 2));
-                return this.#wrapper(choice(name, ps, f));
-            };
+            const originalChoice = choice;
+            this.#choice = (function choice(name, ps, f = x => x) {
+                testSignature([STRING, [Production], funcType(1, 2)], arguments, 1);
+                return wrapper(originalChoice(name, ps, f));
+            });
 
-            this.#opt = (p, defaultValue = cEmpty) => {
-                testType(p, Production);
-                return this.choice(p + "?", [p, xform(p + "? [NOT FOUND]", false, cEmpty, x => defaultValue)]);
-            };
+            this.#opt = (function(p, defaultValue = cEmpty) {
+                testSignature([Production, ANY], arguments, 1);
+                return me.choice(p + "?", [p, xform(p + "? [NOT FOUND]", false, cEmpty, x => defaultValue)]);
+            });
 
-            this.#has = (p) => {
-                testType(p, Production);
-                return this.#wrapper(has(p));
-            };
+            const originalHas = has;
+            this.#has = (function has(p) {
+                testSignature([Production], arguments);
+                return wrapper(originalHas(p));
+            });
 
-            this.#hasNot = (p) => {
-                testType(p, Production);
-                return this.#wrapper(hasNot(p));
-            };
+            const originalHasNot = hasNot;
+            this.#hasNot = (function hasNot(p) => {
+                testSignature([Production], arguments);
+                return wrapper(originalHasNot(p));
+            });
 
-            this.#xform = (name, memoized, p, f) => {
-                testType(name, STRING);
-                testType(memoized, BOOLEAN);
-                testType(p, Production);
-                testType(f, funcType(1, 2));
-                return this.#wrapper(xform(name, memoized, p, f));
-            };
+            const originalXform = xform;
+            this.#xform = (function xform(name, memoized, p, f) {
+                testSignature([STRING, BOOLEAN, Production, funcType(1, 2)], arguments);
+                return wrapper(originalXform(name, memoized, p, f));
+            });
 
-            this.#warn = (name, memoized, p, f) => {
-                testType(name, STRING);
-                testType(memoized, BOOLEAN);
-                testType(p, Production);
-                testType(f, funcType(1, 2));
-                return this.#wrapper(warn(name, memoized, p, f));
-            };
+            const originalWarn = warn;
+            this.#warn = (function warn(name, memoized, p, f) {
+                testSignature([STRING, BOOLEAN, Production, funcType(1, 2)], arguments);
+                return wrapper(originalWarn(name, memoized, p, f));
+            });
 
-            this.#xformData = (name, memoized, p, f) => {
-                testType(name, STRING);
-                testType(memoized, BOOLEAN);
-                testType(p, Production);
-                testType(f, funcType(1, 2));
-                return this.#wrapper(xformData(name, memoized, p, f));
-            };
+            const originalXformData = xformData;
+            this.#xformData = (function xformData(name, memoized, p, f) {
+                testSignature([STRING, BOOLEAN, Production, funcType(1, 2)], arguments);
+                return wrapper(originalXformData(name, memoized, p, f));
+            });
 
-            this.#test = (name, memoized, p, f) => {
-                testType(name, STRING);
-                testType(memoized, BOOLEAN);
-                testType(p, Production);
-                testType(f, funcType(1, 2));
-                return this.#wrapper(test(name, memoized, p, f));
-            };
+            const originalTest = test;
+            this.#test = (function test(name, memoized, p, f) {
+                testSignature([STRING, BOOLEAN, Production, funcType(1, 2)], arguments);
+                return wrapper(originalTest(name, memoized, p, f));
+            });
 
-            this.#lateBound = () => {
-                return new LateBound(this.#wrapper);
-            };
+            this.#lateBound = (function lateBound() {
+                testSignature([], arguments);
+                return new LateBound(wrapper);
+            });
 
-            this.#alternation = (p, q, f = x => x) => {
-                testType(p, Production);
-                testType(q, Production);
-                testType(f, funcType(1));
+            this.#alternation = (function alternation(p, q, f = x => x) {
+                testSignature([Production, Production, funcType(1)], arguments, 1);
 
                 function rearrange(x) {
                     const a = [x[0]];
@@ -1039,15 +1020,13 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
                     return f([a, b]);
                 }
 
-                const continuation = this.sequence(q + " - " + p, [q, p]);
-                const unp = this.sequence(`unprocessed alternating<${p}, ${q}>`, [p, this.star(continuation)]);
-                return this.xform(`alternating<${p}, ${q}>`, true, unp, rearrange);
-            };
+                const continuation = me.sequence(q + " - " + p, [q, p]);
+                const unp = me.sequence(`unprocessed alternating<${p}, ${q}>`, [p, me.star(continuation)]);
+                return me.xform(`alternating<${p}, ${q}>`, true, unp, rearrange);
+            });
 
-            this.#regroup = (name, ps, f = x => x) => {
-                testType(name, STRING);
-                testType(ps, [Production]);
-                testType(f, funcType(1));
+            this.#regroup = (function regroup(name, ps, f = x => x) {
+                testSignature([STRING, [Production], funcType(1)], arguments, 1);
 
                 function rearrange(x) {
                     const out = [];
@@ -1062,9 +1041,9 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
                     return f(out);
                 }
 
-                const part = this.star(this.sequence(`unprocessed ${name}`, ps));
-                return this.xform(name, true, part, rearrange);
-            };
+                const part = me.star(me.sequence(`unprocessed ${name}`, ps));
+                return me.xform(name, true, part, rearrange);
+            });
 
             Object.freeze(this);
         }
@@ -1083,12 +1062,25 @@ const [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Producti
         get has        () { return this.#has        ; }
         get hasNot     () { return this.#hasNot     ; }
         get xform      () { return this.#xform      ; }
+        get warn       () { return this.#warn       ; }
+        get xformData  () { return this.#xformData  ; }
         get test       () { return this.#test       ; }
         get lateBound  () { return this.#lateBound  ; }
         get alternation() { return this.#alternation; }
         get regroup    () { return this.#regroup    ; }
+
+        static get Source       () { return Source       ; }
+        static get ParsePosition() { return ParsePosition; }
+        static get ParseError   () { return ParseError   ; }
+        static get ParseContext () { return ParseContext ; }
+        static get Memory       () { return Memory       ; }
+        static get Production   () { return Production   ; }
+        static get Grammar      () { return Grammar      ; }
+        static get LateBound    () { return LateBound    ; }
+        static get Warning      () { return Warning      ; }
+        static get Trace        () { return Trace        ; }
     };
     Object.freeze(ProductionFactory.prototype);
 
-    return [Source, ParsePosition, Parsed, ParseError, ParseContext, Memory, Production, Grammar, LateBound, Trace, ProductionFactory];
+    return ProductionFactory;
 })();

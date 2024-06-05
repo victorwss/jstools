@@ -1,3 +1,8 @@
+"use strict";
+
+// Check if this was correctly imported.
+UnicodeTable;
+
 function buildTable() {
     const identifierTable = new Uint8Array(0x10FFFF + 1);
 
@@ -12,25 +17,25 @@ function buildTable() {
         return i;
     }
 
-    const planes = [ // Empty planes commented out.
-          {n: "ANSI"  , a: 0x000000, b: 0x0000FF},
-          {n: "BMP"   , a: 0x000100, b: 0x00FFFF},
-          {n: "SMP"   , a: 0x010000, b: 0x01FFFF},
-          {n: "SIP"   , a: 0x020000, b: 0x02FFFF},
-          {n: "TIP"   , a: 0x030000, b: 0x03FFFF},
-        //{n: "P4"    , a: 0x040000, b: 0x04FFFF},
-        //{n: "P5"    , a: 0x050000, b: 0x05FFFF},
-        //{n: "P6"    , a: 0x060000, b: 0x06FFFF},
-        //{n: "P7"    , a: 0x070000, b: 0x07FFFF},
-        //{n: "P8"    , a: 0x080000, b: 0x08FFFF},
-        //{n: "P9"    , a: 0x090000, b: 0x09FFFF},
-        //{n: "PA"    , a: 0x0A0000, b: 0x0AFFFF},
-        //{n: "PB"    , a: 0x0B0000, b: 0x0BFFFF},
-        //{n: "PC"    , a: 0x0C0000, b: 0x0CFFFF},
-        //{n: "PD"    , a: 0x0D0000, b: 0x0DFFFF},
-          {n: "SSP"   , a: 0x0E0000, b: 0x0EFFFF},
-        //{n: "SPUA-A", a: 0x0F0000, b: 0x0FFFFF},
-        //{n: "SPUA-B", a: 0x100000, b: 0x10FFFF}
+    const planes = [
+        {n: "ANSI"  , a: 0x000000, b: 0x00007F},
+        {n: "BMP"   , a: 0x000080, b: 0x00FFFF},
+        {n: "SMP"   , a: 0x010000, b: 0x01FFFF},
+        {n: "SIP"   , a: 0x020000, b: 0x02FFFF},
+        {n: "TIP"   , a: 0x030000, b: 0x03FFFF},
+        {n: "P4"    , a: 0x040000, b: 0x04FFFF}, // Should be empty.
+        {n: "P5"    , a: 0x050000, b: 0x05FFFF}, // Should be empty.
+        {n: "P6"    , a: 0x060000, b: 0x06FFFF}, // Should be empty.
+        {n: "P7"    , a: 0x070000, b: 0x07FFFF}, // Should be empty.
+        {n: "P8"    , a: 0x080000, b: 0x08FFFF}, // Should be empty.
+        {n: "P9"    , a: 0x090000, b: 0x09FFFF}, // Should be empty.
+        {n: "PA"    , a: 0x0A0000, b: 0x0AFFFF}, // Should be empty.
+        {n: "PB"    , a: 0x0B0000, b: 0x0BFFFF}, // Should be empty.
+        {n: "PC"    , a: 0x0C0000, b: 0x0CFFFF}, // Should be empty.
+        {n: "PD"    , a: 0x0D0000, b: 0x0DFFFF}, // Should be empty.
+        {n: "SSP"   , a: 0x0E0000, b: 0x0EFFFF},
+        {n: "SPUA-A", a: 0x0F0000, b: 0x0FFFFF}, // Should be empty.
+        {n: "SPUA-B", a: 0x100000, b: 0x10FFFF}  // Should be empty.
     ];
 
     function splitRanges(ranges, min, max) {

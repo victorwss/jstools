@@ -1,3 +1,8 @@
+"use strict";
+
+// Check if this was correctly imported.
+UnicodeTable;
+
 function sanityCheck() {
     console.log("Checking...");
     function parses(code) {

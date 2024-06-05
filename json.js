@@ -1,14 +1,16 @@
 "use strict";
 
 // Check if those were correctly imported.
-INT; FLOAT; BOOLEAN; FUNCTION; BIGINT; UNDEFINED; NULL; NAN; STRING; INFINITY; ANY; typeName; getType; orType; testType; [].checkFinal; [].checkAbstract;
-UnicodeTable;
-Source; ParsePosition; Parsed; ParseError; ParseContext; Memory; Production; Grammar; LateBound; Trace; ProductionFactory;
+UnicodeTable; Types; ProductionFactory;
 
-const [ParseFlags, XJSON] = (() => {
+const XJSON = (() => {
+    const testSignature = Types.testSignature;
+    const getType = Types.getType;
+    const Production = ProductionFactory.Production;
+
     class ParseFlags {
-        static #standardFlagsValues = [false, 0, false, false, false, 1, false, false, true, true, true, true];
-        static #json5FlagsValues    = [true , 3, true , true , true , 2, true , true , true, true, true, true];
+        static #standardFlagsValues = [false, 0, false, false, false, 1, false, true, false, false, false, false, false, false, true, true, true, true];
+        static #json5FlagsValues    = [true , 3, true , true , true , 2, true , true, true , true , true , true , true , true , true, true, true, true];
 
         static #standardFlags = new ParseFlags(...ParseFlags.#standardFlagsValues);
         static #json5Flags    = new ParseFlags(...ParseFlags.#json5FlagsValues   );
@@ -19,7 +21,13 @@ const [ParseFlags, XJSON] = (() => {
         #allowUnquotedKeys;
         #allowTrailingCommas;
         #allowWhitespace;
-        #allowExtendedNumberNotation;
+        #allowHexNumbers;
+        #allowScientificNumberNotation;
+        #allowLeadingPlus;
+        #allowLeadingDot;
+        #allowTrailingDot;
+        #allowInfinity;
+        #allowNaN;
         #allowControlCharacters;
         #allowSurrogateCharacters;
         #allowPrivateUseCharacters;
@@ -33,40 +41,41 @@ const [ParseFlags, XJSON] = (() => {
                 allowUnquotedKeys,
                 allowTrailingCommas,
                 allowWhitespace,
-                allowExtendedNumberNotation,
+                allowHexNumbers,
+                allowScientificNumberNotation,
+                allowLeadingPlus,
+                allowLeadingDot,
+                allowTrailingDot,
+                allowInfinity,
+                allowNaN,
                 allowControlCharacters,
                 allowSurrogateCharacters,
                 allowPrivateUseCharacters,
                 allowNonCharacters,
                 useBigInts
         ) {
-            testType(allowComments              , BOOLEAN);
-            testType(allowExtraEscapes          , INT    );
-            testType(allowSingleQuotedStrings   , BOOLEAN);
-            testType(allowUnquotedKeys          , BOOLEAN);
-            testType(allowTrailingCommas        , BOOLEAN);
-            testType(allowWhitespace            , INT    );
-            testType(allowExtendedNumberNotation, BOOLEAN);
-            testType(allowControlCharacters     , BOOLEAN);
-            testType(allowSurrogateCharacters   , BOOLEAN);
-            testType(allowPrivateUseCharacters  , BOOLEAN);
-            testType(allowNonCharacters         , BOOLEAN);
-            testType(useBigInts                 , BOOLEAN);
+            testSignature([BOOLEAN, INT, BOOLEAN, BOOLEAN, BOOLEAN, INT, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN], arguments);
 
-            this.#allowComments               = allowComments              ;
-            this.#allowExtraEscapes           = allowExtraEscapes          ;
-            this.#allowSingleQuotedStrings    = allowSingleQuotedStrings   ;
-            this.#allowUnquotedKeys           = allowUnquotedKeys          ;
-            this.#allowTrailingCommas         = allowTrailingCommas        ;
-            this.#allowWhitespace             = allowWhitespace            ;
-            this.#allowExtendedNumberNotation = allowExtendedNumberNotation;
-            this.#allowControlCharacters      = allowControlCharacters     ;
-            this.#allowSurrogateCharacters    = allowSurrogateCharacters   ;
-            this.#allowPrivateUseCharacters   = allowPrivateUseCharacters  ;
-            this.#allowNonCharacters          = allowNonCharacters         ;
-            this.#useBigInts                  = useBigInts                 ;
+            this.#allowComments                 = allowComments                ;
+            this.#allowExtraEscapes             = allowExtraEscapes            ;
+            this.#allowSingleQuotedStrings      = allowSingleQuotedStrings     ;
+            this.#allowUnquotedKeys             = allowUnquotedKeys            ;
+            this.#allowTrailingCommas           = allowTrailingCommas          ;
+            this.#allowWhitespace               = allowWhitespace              ;
+            this.#allowHexNumbers               = allowHexNumbers              ;
+            this.#allowScientificNumberNotation = allowScientificNumberNotation;
+            this.#allowLeadingPlus              = allowLeadingPlus             ;
+            this.#allowLeadingDot               = allowLeadingDot              ;
+            this.#allowTrailingDot              = allowTrailingDot             ;
+            this.#allowInfinity                 = allowInfinity                ;
+            this.#allowNaN                      = allowNaN                     ;
+            this.#allowControlCharacters        = allowControlCharacters       ;
+            this.#allowSurrogateCharacters      = allowSurrogateCharacters     ;
+            this.#allowPrivateUseCharacters     = allowPrivateUseCharacters    ;
+            this.#allowNonCharacters            = allowNonCharacters           ;
+            this.#useBigInts                    = useBigInts                   ;
             if (allowExtraEscapes < 0 || allowExtraEscapes > 3) throw new Error("allowExtraEscapes must be 0-3");
-            if (allowWhitespace   < 0 || allowWhitespace   > 2) throw new Error("allowWhitespace must be 0-2");
+            if (allowWhitespace   < 0 || allowWhitespace   > 2) throw new Error("allowWhitespace must be 0-2"  );
         }
 
         get #params() {
@@ -77,7 +86,13 @@ const [ParseFlags, XJSON] = (() => {
                 this.#allowUnquotedKeys,
                 this.#allowTrailingCommas,
                 this.#allowWhitespace,
+                this.#allowHexNumbers,
                 this.#allowExtendedNumberNotation,
+                this.#allowLeadingPlus,
+                this.#allowLeadingDot,
+                this.#allowTrailingDot,
+                this.#allowInfinity,
+                this.#allowNaN,
                 this.#allowControlCharacters,
                 this.#allowSurrogateCharacters,
                 this.#allowPrivateUseCharacters,
@@ -102,7 +117,13 @@ const [ParseFlags, XJSON] = (() => {
         get allowTrailingCommas        () { return this.#allowTrailingCommas        ; }
         get allowAnsiWhitespace        () { return this.#allowWhitespace >= 1       ; }
         get allowUnicodeWhitespace     () { return this.#allowWhitespace >= 2       ; }
+        get allowHexNumbers            () { return this.#allowExtendedNumbers       ; }
         get allowExtendedNumberNotation() { return this.#allowExtendedNumberNotation; }
+        get allowLeadingPlus           () { return this.#allowLeadingPlus           ; }
+        get allowLeadingDot            () { return this.#allowLeadingDot            ; }
+        get allowTrailingDot           () { return this.#allowTrailingDot           ; }
+        get allowInfinity              () { return this.#allowInfinity              ; }
+        get allowNaN                   () { return this.#allowNaN                   ; }
         get allowControlCharacters     () { return this.#allowControlCharacters     ; }
         get allowSurrogateCharacters   () { return this.#allowSurrogateCharacters   ; }
         get allowPrivateUseCharacters  () { return this.#allowPrivateUseCharacters  ; }
@@ -134,33 +155,47 @@ const [ParseFlags, XJSON] = (() => {
         get withAllowUnicodeWhitespace       () { return this.#fixParams( 5, 2    ); }
         get withAllowAnsiWhitespace          () { return this.#fixParams( 5, 1    ); }
         get withNoAllowWhitespace            () { return this.#fixParams( 5, 0    ); }
-        get withAllowExtendedNumberNotation  () { return this.#fixParams( 6, true ); }
-        get withNoAllowExtendedNumberNotation() { return this.#fixParams( 6, false); }
-        get withAllowControlCharacters       () { return this.#fixParams( 7, true ); }
-        get withNoAllowControlCharacters     () { return this.#fixParams( 7, false); }
-        get withAllowSurrogateCharacters     () { return this.#fixParams( 8, true ); }
-        get withNoAllowSurrogateCharacters   () { return this.#fixParams( 8, false); }
-        get withAllowPrivateUseCharacters    () { return this.#fixParams( 9, true ); }
-        get withNoPrivateUseCharacters       () { return this.#fixParams( 9, false); }
-        get withAllowNonCharacters           () { return this.#fixParams(10, true ); }
-        get withNoNonCharacters              () { return this.#fixParams(10, false); }
-        get withUseBigInts                   () { return this.#fixParams(11, true ); }
-        get withNoUseBigInts                 () { return this.#fixParams(11, false); }
+        get withAllowHexNumbers              () { return this.#fixParams( 6, true ); }
+        get withNoAllowHexNumbers            () { return this.#fixParams( 6, false); }
+        get withAllowExtendedNumberNotation  () { return this.#fixParams( 7, true ); }
+        get withNoAllowExtendedNumberNotation() { return this.#fixParams( 7, false); }
+        get withAllowLeadingPlus             () { return this.#fixParams( 8, true ); }
+        get withNoAllowLeadingPlus           () { return this.#fixParams( 8, false); }
+        get withAllowLeadingDot              () { return this.#fixParams( 9, true ); }
+        get withNoAllowLeadingDot            () { return this.#fixParams( 9, false); }
+        get withAllowTrailingDot             () { return this.#fixParams(10, true ); }
+        get withNoAllowTrailingDot           () { return this.#fixParams(10, false); }
+        get withAllowInfinity                () { return this.#fixParams(11, true ); }
+        get withNoAllowInfinity              () { return this.#fixParams(11, false); }
+        get withAllowNaN                     () { return this.#fixParams(12, true ); }
+        get withNoAllowNaN                   () { return this.#fixParams(12, false); }
+        get withAllowControlCharacters       () { return this.#fixParams(13, true ); }
+        get withNoAllowControlCharacters     () { return this.#fixParams(13, false); }
+        get withAllowSurrogateCharacters     () { return this.#fixParams(14, true ); }
+        get withNoAllowSurrogateCharacters   () { return this.#fixParams(14, false); }
+        get withAllowPrivateUseCharacters    () { return this.#fixParams(15, true ); }
+        get withNoPrivateUseCharacters       () { return this.#fixParams(15, false); }
+        get withAllowNonCharacters           () { return this.#fixParams(16, true ); }
+        get withNoNonCharacters              () { return this.#fixParams(16, false); }
+        get withUseBigInts                   () { return this.#fixParams(17, true ); }
+        get withNoUseBigInts                 () { return this.#fixParams(17, false); }
 
         get withAllowSpecialCharacters  () {
+            testSignature([], arguments);
             return this.withAllowControlCharacters  .withAllowSurrogateCharacters  .withAllowPrivateUseCharacters  .withAllowNonCharacters  ;
         }
 
         get withNoAllowSpecialCharacters() {
+            testSignature([], arguments);
             return this.withNoAllowControlCharacters.withNoAllowSurrogateCharacters.withNoAllowPrivateUseCharacters.withNoAllowNonCharacters;
         }
 
         static get standardFlags() {
-            return ParseFlags.#standardFlags
+            return ParseFlags.#standardFlags;
         }
 
         static get json5Flags() {
-            return ParseFlags.#json5Flags
+            return ParseFlags.#json5Flags;
         }
     }
 
@@ -185,12 +220,16 @@ const [ParseFlags, XJSON] = (() => {
             return ParseFlags.json5Flags;
         }
 
+        static get ParseFlags() {
+            return ParseFlags;
+        }
+
         constructor() {
             throw new TypeError();
         }
 
         static parser(flags) {
-            testType(flags, ParseFlags);
+            testSignature([ParseFlags], arguments);
             const x = (flags.isStandard ? XJSON.#standard : flags.isJson5 ? XJSON.#json5 : XJSON.#create(flags));
             return function(s) {
                 testType(s, STRING);
@@ -199,7 +238,7 @@ const [ParseFlags, XJSON] = (() => {
         }
 
         static #create(flags) {
-            testType(flags, ParseFlags);
+            testSignature([ParseFlags], arguments);
 
             const productions = new ProductionFactory();
             const anyChar     = productions.anyChar()  ;
@@ -218,6 +257,8 @@ const [ParseFlags, XJSON] = (() => {
             const alternation = productions.alternation;
             const regroup     = productions.regroup    ;
             const xform       = productions.xform      ;
+            const warn        = productions.warn       ;
+            const xformData   = productions.xformData  ;
             const test        = productions.test       ;
             const lateBound   = productions.lateBound  ;
 
@@ -242,6 +283,8 @@ const [ParseFlags, XJSON] = (() => {
             const closeBracket   = literal("]" );
             const openCurly      = literal("{" );
             const closeCurly     = literal("}" );
+            const lineSeparator      = literal("\u2028");
+            const paragraphSeparator = literal("\u2029");
 
             // json.org lists only four whitespaces other than the empty string: standard space, new line, carriage return and tab.
             const wsa = choice("Standard whitespace", [literal(" "), lineFeed, carriageReturn, tab]);
@@ -251,7 +294,7 @@ const [ParseFlags, XJSON] = (() => {
 
             // Defined in json5.org. Useful in comments and for multi-line strings. Not used in standard JSON.
             // Important: \r\n must come before \r in the choice.
-            const lineTerminator = choice("Line terminator", [literal("\r\n"), carriageReturn, lineFeed, literal("\u2028"), literal("\u2029")]);
+            const lineTerminator = choice("Line terminator", [literal("\r\n"), carriageReturn, lineFeed, lineSeparator, paragraphSeparator]);
             const notLineTerminator = sequence("Not a line break", [hasNot(lineTerminator), validChar]);
 
             // Part 2: Defining character classes for digits.
@@ -294,12 +337,19 @@ const [ParseFlags, XJSON] = (() => {
 
             // Defined in json5.org with the intent of ignoring the preceding reverse solidus if that is not followed by a digit.
             const hasNotDigit09 = hasNot(digit09);
-            const notDigit = sequence("Not digit", [hasNotDigit09, validChar], z => z[1]);
+            const notDigit = warn("Not digit warning", false, sequence("Not digit", [hasNotDigit09, validChar], z => z[1]), x => `Pointless escape of ${x}.`);
 
             // Part 3: Building integer number from digit sequences.
 
-            const fold10 = z => { testType(z, [BIGINT]); return z.reduce((a, v) => 10n * a + v, 0n); };
-            const fold16 = z => { testType(z, [BIGINT]); return z.reduce((a, v) => 16n * a + v, 0n); };
+            const fold10 = (function fold10(z) {
+                testSignature([BIGINT], arguments);
+                return z.reduce((a, v) => 10n * a + v, 0n);
+            });
+
+            const fold16 = (function fold16(z) {
+                testSignature([BIGINT], arguments);
+                return z.reduce((a, v) => 16n * a + v, 0n);
+            });
 
             // json.org calls this as digits. json5.org calls this as DecimalDigits.
             const digits = plus(digit09);
@@ -388,6 +438,10 @@ const [ParseFlags, XJSON] = (() => {
 
             // Part 6: Strings.
 
+            const lineSeparator      = literal("\u2028");
+            const paragraphSeparator = literal("\u2029");
+            const shouldNotBeThere = warn("Warn about line separator", false, lineSeparator, x => "The line separator char should not be present unescaped inside a string");
+
             // Character production in json.org. The validChar already filtered out control chars (or any other undesired chars) that needed to be filtered out.
             // So we just need to filter out \ and ".
             const hasNotReverseSolidus = hasNot(reverseSolidus);
@@ -395,7 +449,7 @@ const [ParseFlags, XJSON] = (() => {
             const validChar2 = sequence("Char2", [hasNotReverseSolidus, hasNot(doubleQuote), validChar], z => z[2]);
 
             const strChar0 = choice("Identifier character"          , [escapedChar, validChar ]);
-            const strChar1 = choice("Sinqle-quoted string character", [escapedChar, validChar1]);
+            const strChar1 = choice("Single-quoted string character", [escapedChar, validChar1]);
             const strChar2 = choice("Double-quoted string character", [escapedChar, validChar2]);
 
             const str1 = sequence("Single-quoted string", [singleQuote, star(strChar1), singleQuote], z => z[1].join(""));
@@ -411,19 +465,17 @@ const [ParseFlags, XJSON] = (() => {
 
             // Part 8: Numbers.
 
-            const makeNumber = (a, b, c) => {
-                testType(a, BIGINT);
-                testType(b, [BIGINT]);
-                testType(c, BIGINT);
+            const makeNumber = (function makeNumber(a, b, c) {
+                testSignature([BIGINT, [BIGINT], BIGINT], arguments);
                 while (b.at(-1) === 0n) {
                     b = b.slice(0, -1);
                 }
                 const bs = BigInt(b.length);
                 if (!useBig || c < bs) return parseFloat(a + "." + b + "e" + c);
                 return (a * 10n ** bs + fold10(b)) * 10n ** (c - bs);
-            };
+            });
 
-            // Optional signal. Standard JSON doesn't allow a leading +, so we have signalm for that.
+            // Optional signal. Standard JSON doesn't allow a leading + (but JSON5 does), so we have signalm for standard JSON and signalpm for JSON5.
             const plusSign  = literal("+",  1n);
             const minusSign = literal("-", -1n);
             const noSign    = xform("No signal", false, empty, z => 1n);
@@ -432,35 +484,36 @@ const [ParseFlags, XJSON] = (() => {
 
             // Hex integers (without signal yet).
             const zeroX = choice("0x", [literal("0x"), literal("0X")]);
-            const hexLiteral = sequence("Hex literal", [zeroX, hexn], z => z[1]);
+            const hexLiteral = flags.allowHexNumbers ? [sequence("Hex literal", [zeroX, hexn], z => z[1])] : [];
 
             // Exponent for floating-point numbers.
             const e = choice("E sign", [literal("e"), literal("E")]);
             const exponent = sequence("Exponent", [e, signalpm, digits] , z => z[1] * fold10(z[2]));
-            const optExponent = opt(exponent, 0n);
+            const optExponent = flags.allowScientificNumberNotation ? opt(exponent, 0n) : empty;
 
             const dot = literal(".");
 
             // The first three of those are the forms of DecimalLiteral as defined in JSON5. Standard JSON is the 1st and 4th.
-            // The 4th form is a subset of the 3rd, so it is uneeded/redundant to JSON5. But the 3rd form is non-compliant in standard JSON, so we still need the 4th.
-            const simpleNumber    = sequence("Simple number"    , [decimalIntegerLiteral,                         optExponent], z => makeNumber(z[0], [0n], z[1]));
-            const dotNumber       = sequence("Dot number"       , [                       dot,     digits       , optExponent], z => makeNumber(  0n, z[1], z[2]));
-            const fullNumberLoose = sequence("Full number loose", [decimalIntegerLiteral, dot, opt(digits, [0n]), optExponent], z => makeNumber(z[0], z[2], z[3]));
-            const fullNumberRigid = sequence("Full number rigid", [decimalIntegerLiteral, dot,     digits       , optExponent], z => makeNumber(z[0], z[2], z[3]));
+            // The 4th form is a subset of the 3rd, so it is uneeded/redundant to JSON5. Their difference is if a trailing dot is permitted or not.
+            // But since the 3rd form is non-compliant in standard JSON (due to trailing dot), we still need the 4th for it.
+            const simpleNumber     = sequence("Simple number"     , [decimalIntegerLiteral,                         optExponent], z => makeNumber(z[0], [0n], z[1]));
+            const dotNumber1       = sequence("Dot number"        , [                       dot,     digits       , optExponent], z => makeNumber(  0n, z[1], z[2]));
+            const fullNumberLoose  = sequence("Full number loose" , [decimalIntegerLiteral, dot, opt(digits, [0n]), optExponent], z => makeNumber(z[0], z[2], z[3]));
+            const fullNumberRigid  = sequence("Full number rigid" , [decimalIntegerLiteral, dot,     digits       , optExponent], z => makeNumber(z[0], z[2], z[3]));
 
             // Numeric literals for JSON5.
-            const literalInfinity = literal("Infinity", Infinity);
-            const literalNaN      = literal("NaN"     , NaN     );
+            const literalInfinity = flags.allowInfinity ? [literal("Infinity", Infinity)] : [];
+            const literalNaN      = flags.allowNaN      ? [literal("NaN"     , NaN     )] : [];
 
-            // Warning: Order matters. simpleNumber should be tried after the other forms.
-            const extendedNumericLiteral = choice("Extended decimal literal", [dotNumber, fullNumberLoose, simpleNumber, hexLiteral, literalInfinity, literalNaN]);
-            const standardNumericLiteral = choice("Standard decimal literal", [fullNumberRigid, simpleNumber]);
+            // Caution: Order matters. Hence, simpleNumber should be tried only after the other similar forms.
+            const dotNumber2 = flags.allowLeadingDot ? [dotNumber1] : [];
+            const numberForms = [...literalInfinity, ...literalNaN, ...hexLiteral, ...dotNumber2, (flags.allowTrailingDot ? fullNumberLoose : fullNumberRigid), simpleNumber];
+
+            const numericLiteral = choice("Signless numeric literal", numberForms);
 
             const signalize = z => (getType(z[1]) === BIGINT ? z[0] : Number(z[0])) * z[1];
-            const extendedNumber = sequence("Extended number", [signalpm, extendedNumericLiteral], signalize);
-            const standardNumber = sequence("Standard number", [signalm , standardNumericLiteral], signalize);
-
-            const num = flags.allowExtendedNumberNotation ? extendedNumber : standardNumber;
+            const signalForm = flags.allowLeadingPlus ? signalpm : signalm;
+            const num = sequence("Signed numeric literal", [signalForm, numericLiteral], signalize);
 
             // Part 9: Objects and lists.
 
@@ -481,26 +534,27 @@ const [ParseFlags, XJSON] = (() => {
             const comma = sequence("Comma", [ws, literal(","), ws]);
             const optComma = opt(comma);
 
-            const commas = (n, x) => {
+            const commas = (function commas(n, x) {
+                testSignature([STRING, Production], arguments);
                 const alt = alternation(x, comma, z => z[0]);
                 const seq = sequence(n + " possibly with extra comma", [alt, optComma], z => z[0]);
                 return flags.allowTrailingCommas ? seq : alt;
-            };
+            });
 
-            const makeObj = (pairs) => {
-                testType(pairs, Array);
+            const makeObj = (function makeObj(pairs) {
+                testSignature([[ANY]], arguments);
                 const x = {};
                 for (const p of pairs) {
                     testType(p[0], STRING);
                     x[p[0]] = p[1];
                 }
                 return x;
-            };
+            });
 
             obj.inner = sequence("Object", [openCurly  , commas("Object properties", kv   ), closeCurly  ], z => makeObj(z[1]));
             arr.inner = sequence("List"  , [openBracket, commas("List items"       , value), closeBracket], z => z[1]         );
 
-            // Part 10: The gran-finale.
+            // Part 10: The grand-finale.
 
             const root = sequence("JSON document", [bof, value, eof], z => z[1]);
             const g = new Grammar(root);
@@ -508,5 +562,5 @@ const [ParseFlags, XJSON] = (() => {
         }
     }
 
-    return [ParseFlags, XJSON];
+    return XJSON;
 })();
